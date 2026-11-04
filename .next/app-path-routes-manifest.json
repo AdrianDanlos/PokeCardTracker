@@ -1,0 +1,15 @@
+{
+  "/_not-found/page": "/_not-found",
+  "/api/cards/add-to-collection/route": "/api/cards/add-to-collection",
+  "/api/cards/import-set/route": "/api/cards/import-set",
+  "/api/cards/manual/route": "/api/cards/manual",
+  "/api/cards/search/route": "/api/cards/search",
+  "/api/collections/[id]/export/route": "/api/collections/[id]/export",
+  "/api/collections/import/route": "/api/collections/import",
+  "/api/inventory/export/route": "/api/inventory/export",
+  "/auth/callback/route": "/auth/callback",
+  "/collections/[id]/page": "/collections/[id]",
+  "/favicon.ico/route": "/favicon.ico",
+  "/login/page": "/login",
+  "/page": "/"
+}
