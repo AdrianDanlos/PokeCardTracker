@@ -64,6 +64,7 @@ export interface CollectionEntryWithCard {
     set?: SetRecord | null;
   };
   owned_quantity: number;
+  owned_copies: OwnedCopyRecord[];
   owned_copy: OwnedCopyRecord | null;
 }
 

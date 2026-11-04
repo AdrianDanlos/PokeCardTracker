@@ -5,7 +5,13 @@ import { useMemo, useState } from "react";
 
 const PAGE_SIZE = 9;
 
-export function BinderView({ entries }: { entries: CollectionEntryWithCard[] }) {
+export function BinderView({
+  entries,
+  onSelect,
+}: {
+  entries: CollectionEntryWithCard[];
+  onSelect?: (entry: CollectionEntryWithCard) => void;
+}) {
   const pages = useMemo(() => {
     const chunks: CollectionEntryWithCard[][] = [];
     for (let i = 0; i < entries.length; i += PAGE_SIZE) {
@@ -27,8 +33,10 @@ export function BinderView({ entries }: { entries: CollectionEntryWithCard[] }) 
           }
           const owned = entry.owned_quantity > 0;
           return (
-            <div
+            <button
               key={entry.id}
+              type="button"
+              onClick={() => onSelect?.(entry)}
               className={`relative flex aspect-[3/4] flex-col items-center justify-center rounded-md p-2 text-center text-xs ${
                 owned ? "card-tile-owned" : "card-tile-missing"
               }`}
@@ -39,7 +47,7 @@ export function BinderView({ entries }: { entries: CollectionEntryWithCard[] }) 
                   x{entry.owned_quantity}
                 </span>
               )}
-            </div>
+            </button>
           );
         })}
       </div>

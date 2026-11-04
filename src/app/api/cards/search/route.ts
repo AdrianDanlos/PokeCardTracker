@@ -10,9 +10,10 @@ export async function GET(request: Request) {
     return NextResponse.json({ results: [] });
   }
   try {
-    const adapter = getAdapter(source);
+    const language = searchParams.get("language") ?? undefined;
+    const adapter = getAdapter(source, language ?? undefined);
     const results = await adapter.searchCards(q, {
-      language: searchParams.get("language") ?? undefined,
+      language: language ?? undefined,
     });
     return NextResponse.json({
       results: results.map((r) => ({

@@ -8,13 +8,16 @@ import {
 
 export default async function CollectionPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ q?: string }>;
 }) {
   const { id } = await params;
-  const [meta, { entries, demo }, breakdown] = await Promise.all([
+  const { q } = await searchParams;
+  const [meta, { entries, demo, requiresAuth }, breakdown] = await Promise.all([
     getCollectionMeta(id),
-    getCollectionEntries(id),
+    getCollectionEntries(id, { search: q }),
     getProgressBreakdown(id),
   ]);
 
@@ -26,6 +29,8 @@ export default async function CollectionPage({
         initialEntries={entries}
         breakdown={breakdown}
         demo={demo}
+        requiresAuth={requiresAuth}
+        initialSearch={q ?? ""}
       />
     </>
   );

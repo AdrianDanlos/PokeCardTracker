@@ -25,3 +25,8 @@ export function isUsingLocalSupabaseDefaults() {
     !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()
   );
 }
+
+/** Production Supabase env vars are configured (not demo/local fallback). */
+export function isProductionSupabaseConfigured() {
+  return !isUsingLocalSupabaseDefaults();
+}

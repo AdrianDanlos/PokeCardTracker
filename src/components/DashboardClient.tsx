@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { CollectionCard } from "@/components/CollectionCard";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
 import type { CollectionProgressSummary } from "@/lib/types";
@@ -8,9 +9,11 @@ import type { CollectionProgressSummary } from "@/lib/types";
 export function DashboardClient({
   initialCollections,
   demo,
+  requiresAuth,
 }: {
   initialCollections: CollectionProgressSummary[];
   demo: boolean;
+  requiresAuth?: boolean;
 }) {
   const [collections, setCollections] = useState(initialCollections);
   const [search, setSearch] = useState("");
@@ -25,6 +28,28 @@ export function DashboardClient({
         (c.description?.toLowerCase().includes(q) ?? false),
     );
   }, [collections, search]);
+
+  async function exportInventory() {
+    const res = await fetch("/api/inventory/export");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "inventory.csv";
+    a.click();
+  }
+
+  if (requiresAuth) {
+    return (
+      <div className="rounded-xl border border-border bg-surface p-10 text-center">
+        <h1 className="text-2xl font-bold">My collections</h1>
+        <p className="mt-3 text-muted">Sign in with a magic link to manage your collections.</p>
+        <Link href="/login" className="btn-primary mt-6 inline-block">
+          Log in
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -47,6 +72,11 @@ export function DashboardClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
+          {!demo && (
+            <button type="button" className="btn-ghost whitespace-nowrap" onClick={exportInventory}>
+              Export inventory CSV
+            </button>
+          )}
           <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setShowNew(true)}>
             New collection
           </button>
@@ -58,6 +88,10 @@ export function DashboardClient({
           <CollectionCard key={c.collection_id} collection={c} index={i} />
         ))}
       </div>
+
+      {!demo && filtered.length === 0 && (
+        <p className="text-center text-muted">No collections yet. Create one to get started.</p>
+      )}
 
       {showNew && (
         <NewCollectionModal

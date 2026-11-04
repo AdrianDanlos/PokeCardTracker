@@ -1,7 +1,7 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import type { CardCondition, CollectionEntryWithCard } from "@/lib/types";
+import type { CardCondition, CollectionEntryWithCard, OwnedCopyRecord } from "@/lib/types";
 import { useEffect, useState } from "react";
 
 const CONDITIONS: CardCondition[] = ["NM", "LP", "MP", "HP", "DMG"];
@@ -16,23 +16,57 @@ export function CardEditorDrawer({
   onUpdated: (entry: CollectionEntryWithCard) => void;
 }) {
   const [owned, setOwned] = useState(entry.owned_quantity > 0);
-  const [quantity, setQuantity] = useState(entry.owned_quantity || 1);
+  const [copyId, setCopyId] = useState<string | "new">(entry.owned_copies[0]?.id ?? "new");
+  const [quantity, setQuantity] = useState(entry.owned_copies[0]?.quantity ?? 1);
   const [condition, setCondition] = useState<CardCondition>(
-    entry.owned_copy?.condition ?? "NM",
+    entry.owned_copies[0]?.condition ?? "NM",
   );
-  const [language, setLanguage] = useState(entry.owned_copy?.language ?? entry.card.language);
-  const [edition, setEdition] = useState(entry.owned_copy?.edition ?? entry.card.edition ?? "");
-  const [variant, setVariant] = useState(entry.owned_copy?.variant ?? entry.card.variant ?? "");
+  const [language, setLanguage] = useState(
+    entry.owned_copies[0]?.language ?? entry.card.language,
+  );
+  const [edition, setEdition] = useState(
+    entry.owned_copies[0]?.edition ?? entry.card.edition ?? "",
+  );
+  const [variant, setVariant] = useState(
+    entry.owned_copies[0]?.variant ?? entry.card.variant ?? "",
+  );
   const [price, setPrice] = useState(
-    entry.owned_copy?.purchase_price != null ? String(entry.owned_copy.purchase_price) : "",
+    entry.owned_copies[0]?.purchase_price != null
+      ? String(entry.owned_copies[0].purchase_price)
+      : "",
   );
-  const [notes, setNotes] = useState(entry.owned_copy?.notes ?? "");
+  const [copyNotes, setCopyNotes] = useState(entry.owned_copies[0]?.notes ?? "");
+  const [slotLabel, setSlotLabel] = useState(entry.slot_label ?? "");
+  const [entryNotes, setEntryNotes] = useState(entry.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     setOwned(entry.owned_quantity > 0);
-    setQuantity(entry.owned_quantity || 1);
+    setSlotLabel(entry.slot_label ?? "");
+    setEntryNotes(entry.notes ?? "");
+    const first = entry.owned_copies[0];
+    setCopyId(first?.id ?? "new");
+    setQuantity(first?.quantity ?? 1);
+    setCondition(first?.condition ?? "NM");
+    setLanguage(first?.language ?? entry.card.language);
+    setEdition(first?.edition ?? entry.card.edition ?? "");
+    setVariant(first?.variant ?? entry.card.variant ?? "");
+    setPrice(first?.purchase_price != null ? String(first.purchase_price) : "");
+    setCopyNotes(first?.notes ?? "");
   }, [entry]);
+
+  function selectCopy(id: string) {
+    setCopyId(id);
+    const copy = entry.owned_copies.find((c) => c.id === id);
+    if (!copy) return;
+    setQuantity(copy.quantity);
+    setCondition(copy.condition);
+    setLanguage(copy.language ?? entry.card.language);
+    setEdition(copy.edition ?? "");
+    setVariant(copy.variant ?? "");
+    setPrice(copy.purchase_price != null ? String(copy.purchase_price) : "");
+    setCopyNotes(copy.notes ?? "");
+  }
 
   async function save() {
     setSaving(true);
@@ -42,17 +76,34 @@ export function CardEditorDrawer({
       setSaving(false);
       return;
     }
+
+    await supabase
+      .from("collection_entries")
+      .update({
+        slot_label: slotLabel.trim() || null,
+        notes: entryNotes.trim() || null,
+      })
+      .eq("id", entry.id);
+
     if (!owned) {
       await supabase
         .from("owned_copies")
         .delete()
         .eq("user_id", userData.user.id)
         .eq("card_id", entry.card_id);
-      onUpdated({ ...entry, owned_quantity: 0, owned_copy: null });
+      onUpdated({
+        ...entry,
+        slot_label: slotLabel.trim() || null,
+        notes: entryNotes.trim() || null,
+        owned_quantity: 0,
+        owned_copies: [],
+        owned_copy: null,
+      });
       setSaving(false);
       onClose();
       return;
     }
+
     const payload = {
       user_id: userData.user.id,
       card_id: entry.card_id,
@@ -62,22 +113,42 @@ export function CardEditorDrawer({
       variant: variant || null,
       quantity,
       purchase_price: price ? Number(price) : null,
-      notes: notes || null,
+      notes: copyNotes || null,
     };
-    const { data, error } = await supabase
-      .from("owned_copies")
-      .upsert(payload, { onConflict: "user_id,card_id" })
-      .select("*")
-      .single();
-    setSaving(false);
-    if (!error && data) {
-      onUpdated({
-        ...entry,
-        owned_quantity: quantity,
-        owned_copy: data,
-      });
-      onClose();
+
+    let savedCopy: OwnedCopyRecord | null = null;
+    if (copyId === "new") {
+      const { data, error } = await supabase.from("owned_copies").insert(payload).select("*").single();
+      if (!error && data) savedCopy = data as OwnedCopyRecord;
+    } else {
+      const { data, error } = await supabase
+        .from("owned_copies")
+        .update(payload)
+        .eq("id", copyId)
+        .select("*")
+        .single();
+      if (!error && data) savedCopy = data as OwnedCopyRecord;
     }
+
+    const { data: allCopies } = await supabase
+      .from("owned_copies")
+      .select("*")
+      .eq("user_id", userData.user.id)
+      .eq("card_id", entry.card_id);
+
+    const copies = (allCopies ?? []) as OwnedCopyRecord[];
+    const qty = copies.reduce((n, c) => n + c.quantity, 0);
+
+    setSaving(false);
+    onUpdated({
+      ...entry,
+      slot_label: slotLabel.trim() || null,
+      notes: entryNotes.trim() || null,
+      owned_quantity: qty,
+      owned_copies: copies,
+      owned_copy: savedCopy ?? copies[0] ?? null,
+    });
+    onClose();
   }
 
   return (
@@ -100,7 +171,45 @@ export function CardEditorDrawer({
           Owned
         </label>
 
+        {owned && entry.owned_copies.length > 0 && (
+          <label className="mb-3 block text-sm">
+            <span className="text-muted">Copy group</span>
+            <select
+              className="input mt-1"
+              value={copyId}
+              onChange={(e) => {
+                const v = e.target.value;
+                if (v === "new") {
+                  setCopyId("new");
+                  setQuantity(1);
+                  setCondition("NM");
+                  setLanguage(entry.card.language);
+                  setEdition(entry.card.edition ?? "");
+                  setVariant(entry.card.variant ?? "");
+                  setPrice("");
+                  setCopyNotes("");
+                } else selectCopy(v);
+              }}
+            >
+              {entry.owned_copies.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.condition} · {c.edition || "—"} · x{c.quantity}
+                </option>
+              ))}
+              <option value="new">+ New copy group</option>
+            </select>
+          </label>
+        )}
+
         <div className="grid flex-1 gap-3 overflow-y-auto text-sm">
+          <label className="space-y-1">
+            <span className="text-muted">Slot label</span>
+            <input className="input" value={slotLabel} onChange={(e) => setSlotLabel(e.target.value)} />
+          </label>
+          <label className="space-y-1">
+            <span className="text-muted">Entry notes</span>
+            <textarea className="input min-h-[60px]" value={entryNotes} onChange={(e) => setEntryNotes(e.target.value)} />
+          </label>
           <label className="space-y-1">
             <span className="text-muted">Quantity</span>
             <input
@@ -144,8 +253,8 @@ export function CardEditorDrawer({
             <input className="input" value={price} onChange={(e) => setPrice(e.target.value)} disabled={!owned} />
           </label>
           <label className="space-y-1">
-            <span className="text-muted">Notes</span>
-            <textarea className="input min-h-[80px]" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={!owned} />
+            <span className="text-muted">Copy notes</span>
+            <textarea className="input min-h-[80px]" value={copyNotes} onChange={(e) => setCopyNotes(e.target.value)} disabled={!owned} />
           </label>
         </div>
 

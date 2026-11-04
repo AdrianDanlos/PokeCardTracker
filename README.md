@@ -1,6 +1,4 @@
 # PokeCardTracker
-<<<<<<< HEAD
-=======
 
 Single-user Next.js app for **custom** Pokémon TCG collections (not tied to official set completion). Built with App Router, TypeScript, Tailwind, and Supabase (Postgres, Storage, magic-link Auth, RLS).
 
@@ -8,8 +6,8 @@ Single-user Next.js app for **custom** Pokémon TCG collections (not tied to off
 
 - Dashboard with collection tiles, search, and progress
 - Collection view: All / Owned / Missing filters, search, filter chips, grid + 3×3 binder pages, stats breakdown
-- Card editor drawer (condition, language, edition, variant, qty, price, notes)
-- Add cards via pokemontcg.io or TCGdex search, bulk set import, or manual entry with image upload
+- Card editor drawer (owned copy groups, condition, language, edition, variant, qty, price, notes, slot label, entry notes)
+- Add cards via pokemontcg.io or TCGdex search (including bulk add), bulk set import, or manual entry with image upload
 - CSV export/import for collections; inventory CSV export
 - `CardSourceAdapter` interface with pokemontcg, tcgdex, and manual adapters
 
@@ -30,7 +28,7 @@ npm run dev
 
 3. Open [http://localhost:3000](http://localhost:3000). Use **Magic link login** (`/login`). For local auth emails, open Inbucket at [http://127.0.0.1:54324](http://127.0.0.1:54324).
 
-Without a running Supabase instance, the UI still loads **static demo data** matching the design mockups.
+Without a running Supabase instance, the UI still loads **static demo data** matching the design mockups. When production Supabase env vars are set, unauthenticated users are prompted to sign in instead of seeing demo collections.
 
 ## Environment variables
 
@@ -52,12 +50,11 @@ Add production values in Vercel and/or **Cursor Dashboard → Cloud Agents → S
 
 ## Deployment
 
-Deploy to Vercel, link a Supabase project, run migrations against the remote DB (`supabase db push`), and set the env vars above.
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for Supabase + Vercel setup (`supabase db push`, env vars, and linking the GitHub repo).
 
-## Docs (project store)
+After deploy, your production URL appears in the Vercel project **Domains** tab (for example `https://poke-card-tracker.vercel.app`).
 
-Research and schema write-ups live in the Cursor project store:
+## Docs
 
-- `docs/card-sources-research.md`
-- `docs/database-schema.md`
->>>>>>> 8588b10 (Implement PokeCardTracker Next.js app with Supabase schema)
+- [docs/card-sources-research.md](./docs/card-sources-research.md)
+- [docs/database-schema.md](./docs/database-schema.md)

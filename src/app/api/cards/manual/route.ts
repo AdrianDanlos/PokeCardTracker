@@ -44,7 +44,14 @@ export async function POST(request: Request) {
       name,
       rarity: String(form.get("rarity") ?? "") || null,
       language: String(form.get("language") ?? "en"),
-      category: "custom",
+      edition: String(form.get("edition") ?? "").trim() || null,
+      variant: String(form.get("variant") ?? "").trim() || null,
+      category: (String(form.get("category") ?? "custom") || "custom") as
+        | "official"
+        | "promo"
+        | "variant"
+        | "misprint"
+        | "custom",
       created_by: userData.user.id,
     })
     .select("id")
