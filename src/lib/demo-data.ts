@@ -90,16 +90,16 @@ const card = (
 });
 
 export const DEMO_GYM_ENTRIES: CollectionEntryWithCard[] = [
-  { id: "e1", collection_id: "demo-gym", card_id: "c1", position: 0, slot_label: null, notes: null, card: card("c1", "Blaine's Charizard", "Gym Challenge", "Holo", "2"), owned_quantity: 1, owned_copy: null },
-  { id: "e2", collection_id: "demo-gym", card_id: "c2", position: 1, slot_label: null, notes: null, card: card("c2", "Sabrina's Alakazam", "Gym Heroes", "Holo", "16"), owned_quantity: 2, owned_copy: null },
-  { id: "e3", collection_id: "demo-gym", card_id: "c3", position: 2, slot_label: null, notes: null, card: card("c3", "Lt. Surge's Raichu", "Gym Challenge", "Holo", "11"), owned_quantity: 1, owned_copy: null },
-  { id: "e4", collection_id: "demo-gym", card_id: "c4", position: 3, slot_label: null, notes: null, card: card("c4", "Brock's Onix", "Gym Heroes", "Non-holo", "69"), owned_quantity: 1, owned_copy: null },
-  { id: "e5", collection_id: "demo-gym", card_id: "c5", position: 4, slot_label: null, notes: null, card: card("c5", "Rocket's Mewtwo", "Gym Challenge", "Holo", "14"), owned_quantity: 1, owned_copy: null },
-  { id: "e6", collection_id: "demo-gym", card_id: "c6", position: 5, slot_label: null, notes: null, card: card("c6", "Pikachu stamp", "Promo", "Promo", "24"), owned_quantity: 3, owned_copy: null },
-  { id: "e7", collection_id: "demo-gym", card_id: "c7", position: 6, slot_label: null, notes: null, card: card("c7", "Misty's Starmie", "Gym Heroes", "Non-holo", "64"), owned_quantity: 0, owned_copy: null },
-  { id: "e8", collection_id: "demo-gym", card_id: "c8", position: 7, slot_label: null, notes: null, card: card("c8", "Giovanni's Nidoking", "Gym Heroes", "Non-holo", "48"), owned_quantity: 0, owned_copy: null },
-  { id: "e9", collection_id: "demo-gym", card_id: "c9", position: 8, slot_label: null, notes: null, card: card("c9", "Erika's Venusaur", "Gym Heroes", "Holo", "4"), owned_quantity: 0, owned_copy: null },
-  { id: "e10", collection_id: "demo-gym", card_id: "c10", position: 9, slot_label: null, notes: null, card: card("c10", "Koga's Ninja Trick", "Gym Heroes", "Non-holo", "24"), owned_quantity: 0, owned_copy: null },
+  { id: "e1", collection_id: "demo-gym", card_id: "c1", position: 0, slot_label: null, notes: null, card: card("c1", "Blaine's Charizard", "Gym Challenge", "Holo", "2"), owned_quantity: 1, owned_copies: [], owned_copy: null },
+  { id: "e2", collection_id: "demo-gym", card_id: "c2", position: 1, slot_label: null, notes: null, card: card("c2", "Sabrina's Alakazam", "Gym Heroes", "Holo", "16"), owned_quantity: 2, owned_copies: [], owned_copy: null },
+  { id: "e3", collection_id: "demo-gym", card_id: "c3", position: 2, slot_label: null, notes: null, card: card("c3", "Lt. Surge's Raichu", "Gym Challenge", "Holo", "11"), owned_quantity: 1, owned_copies: [], owned_copy: null },
+  { id: "e4", collection_id: "demo-gym", card_id: "c4", position: 3, slot_label: null, notes: null, card: card("c4", "Brock's Onix", "Gym Heroes", "Non-holo", "69"), owned_quantity: 1, owned_copies: [], owned_copy: null },
+  { id: "e5", collection_id: "demo-gym", card_id: "c5", position: 4, slot_label: null, notes: null, card: card("c5", "Rocket's Mewtwo", "Gym Challenge", "Holo", "14"), owned_quantity: 1, owned_copies: [], owned_copy: null },
+  { id: "e6", collection_id: "demo-gym", card_id: "c6", position: 5, slot_label: null, notes: null, card: card("c6", "Pikachu stamp", "Promo", "Promo", "24"), owned_quantity: 3, owned_copies: [], owned_copy: null },
+  { id: "e7", collection_id: "demo-gym", card_id: "c7", position: 6, slot_label: null, notes: null, card: card("c7", "Misty's Starmie", "Gym Heroes", "Non-holo", "64"), owned_quantity: 0, owned_copies: [], owned_copy: null },
+  { id: "e8", collection_id: "demo-gym", card_id: "c8", position: 7, slot_label: null, notes: null, card: card("c8", "Giovanni's Nidoking", "Gym Heroes", "Non-holo", "48"), owned_quantity: 0, owned_copies: [], owned_copy: null },
+  { id: "e9", collection_id: "demo-gym", card_id: "c9", position: 8, slot_label: null, notes: null, card: card("c9", "Erika's Venusaur", "Gym Heroes", "Holo", "4"), owned_quantity: 0, owned_copies: [], owned_copy: null },
+  { id: "e10", collection_id: "demo-gym", card_id: "c10", position: 9, slot_label: null, notes: null, card: card("c10", "Koga's Ninja Trick", "Gym Heroes", "Non-holo", "24"), owned_quantity: 0, owned_copies: [], owned_copy: null },
 ];
 
 export const DEMO_BREAKDOWN: ProgressBreakdown = {

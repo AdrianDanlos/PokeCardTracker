@@ -1,20 +1,28 @@
 import { DEMO_COLLECTIONS, DEMO_BREAKDOWN, DEMO_GYM_ENTRIES } from "@/lib/demo-data";
+import { isProductionSupabaseConfigured } from "@/lib/env";
 import { createClient } from "@/lib/supabase/server";
 import type {
   CollectionEntryWithCard,
   CollectionProgressSummary,
+  OwnedCopyRecord,
   ProgressBreakdown,
 } from "@/lib/types";
 
-export async function listCollections(): Promise<{
+export type ListCollectionsResult = {
   collections: CollectionProgressSummary[];
   demo: boolean;
-}> {
+  requiresAuth: boolean;
+};
+
+export async function listCollections(): Promise<ListCollectionsResult> {
   try {
     const supabase = await createClient();
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) {
-      return { collections: DEMO_COLLECTIONS, demo: true };
+      if (isProductionSupabaseConfigured()) {
+        return { collections: [], demo: false, requiresAuth: true };
+      }
+      return { collections: DEMO_COLLECTIONS, demo: true, requiresAuth: false };
     }
     const { data, error } = await supabase
       .from("collection_progress_summary")
@@ -23,26 +31,56 @@ export async function listCollections(): Promise<{
       .order("sort_order", { ascending: true });
     if (error || !data?.length) {
       if (error) console.warn("listCollections", error.message);
-      return { collections: DEMO_COLLECTIONS, demo: true };
+      if (isProductionSupabaseConfigured()) {
+        return { collections: (data as CollectionProgressSummary[]) ?? [], demo: false, requiresAuth: false };
+      }
+      return { collections: DEMO_COLLECTIONS, demo: true, requiresAuth: false };
     }
-    return { collections: data as CollectionProgressSummary[], demo: false };
+    return { collections: data as CollectionProgressSummary[], demo: false, requiresAuth: false };
   } catch {
-    return { collections: DEMO_COLLECTIONS, demo: true };
+    if (isProductionSupabaseConfigured()) {
+      return { collections: [], demo: false, requiresAuth: true };
+    }
+    return { collections: DEMO_COLLECTIONS, demo: true, requiresAuth: false };
   }
+}
+
+function sumOwnedQuantity(copies: OwnedCopyRecord[]) {
+  return copies.reduce((n, c) => n + c.quantity, 0);
 }
 
 export async function getCollectionEntries(
   collectionId: string,
-): Promise<{ entries: CollectionEntryWithCard[]; demo: boolean }> {
+  options?: { search?: string },
+): Promise<{ entries: CollectionEntryWithCard[]; demo: boolean; requiresAuth: boolean }> {
   if (collectionId.startsWith("demo-")) {
-    return { entries: DEMO_GYM_ENTRIES, demo: true };
+    return { entries: DEMO_GYM_ENTRIES, demo: true, requiresAuth: false };
   }
   try {
     const supabase = await createClient();
     const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return { entries: DEMO_GYM_ENTRIES, demo: true };
+    if (!userData.user) {
+      if (isProductionSupabaseConfigured()) {
+        return { entries: [], demo: false, requiresAuth: true };
+      }
+      return { entries: DEMO_GYM_ENTRIES, demo: true, requiresAuth: false };
+    }
 
-    const { data: entries, error } = await supabase
+    let cardIdsFilter: string[] | null = null;
+    const search = options?.search?.trim();
+    if (search) {
+      const { data: cards } = await supabase
+        .from("cards")
+        .select("id")
+        .or(`name.ilike.%${search}%,number.ilike.%${search}%`)
+        .limit(500);
+      cardIdsFilter = (cards ?? []).map((c) => c.id);
+      if (cardIdsFilter.length === 0) {
+        return { entries: [], demo: false, requiresAuth: false };
+      }
+    }
+
+    let query = supabase
       .from("collection_entries")
       .select(
         `
@@ -57,9 +95,18 @@ export async function getCollectionEntries(
       .eq("collection_id", collectionId)
       .order("position", { ascending: true });
 
+    if (cardIdsFilter) {
+      query = query.in("card_id", cardIdsFilter);
+    }
+
+    const { data: entries, error } = await query;
+
     if (error || !entries) {
       console.warn("getCollectionEntries", error?.message);
-      return { entries: DEMO_GYM_ENTRIES, demo: true };
+      if (isProductionSupabaseConfigured()) {
+        return { entries: [], demo: false, requiresAuth: false };
+      }
+      return { entries: DEMO_GYM_ENTRIES, demo: true, requiresAuth: false };
     }
 
     const cardIds = entries.map((e) => e.card_id);
@@ -69,11 +116,17 @@ export async function getCollectionEntries(
       .eq("user_id", userData.user.id)
       .in("card_id", cardIds);
 
-    const ownedMap = new Map((owned ?? []).map((o) => [o.card_id, o]));
+    const ownedByCard = new Map<string, OwnedCopyRecord[]>();
+    for (const row of owned ?? []) {
+      const list = ownedByCard.get(row.card_id) ?? [];
+      list.push(row as OwnedCopyRecord);
+      ownedByCard.set(row.card_id, list);
+    }
 
     const mapped: CollectionEntryWithCard[] = entries.map((e) => {
-      const copy = ownedMap.get(e.card_id);
+      const copies = ownedByCard.get(e.card_id) ?? [];
       const cardRaw = e.card as unknown as CollectionEntryWithCard["card"];
+      const qty = sumOwnedQuantity(copies);
       return {
         id: e.id,
         collection_id: e.collection_id,
@@ -82,14 +135,18 @@ export async function getCollectionEntries(
         slot_label: e.slot_label,
         notes: e.notes,
         card: cardRaw,
-        owned_quantity: copy?.quantity ?? 0,
-        owned_copy: copy ?? null,
+        owned_quantity: qty,
+        owned_copies: copies,
+        owned_copy: copies[0] ?? null,
       };
     });
 
-    return { entries: mapped, demo: false };
+    return { entries: mapped, demo: false, requiresAuth: false };
   } catch {
-    return { entries: DEMO_GYM_ENTRIES, demo: true };
+    if (isProductionSupabaseConfigured()) {
+      return { entries: [], demo: false, requiresAuth: true };
+    }
+    return { entries: DEMO_GYM_ENTRIES, demo: true, requiresAuth: false };
   }
 }
 

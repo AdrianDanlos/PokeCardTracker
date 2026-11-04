@@ -1,7 +1,7 @@
 import type { CardSourceAdapter, ImportSetResult } from "./types";
 import type { CardSearchResult } from "@/lib/types";
 
-function langPath(language = "en") {
+function langPath(language = "ja") {
   return language === "ja" ? "ja" : "en";
 }
 
@@ -33,20 +33,22 @@ async function fetchTcgdex(path: string) {
   return res.json();
 }
 
-export function createTcgdexAdapter(defaultLanguage = "en"): CardSourceAdapter {
+export function createTcgdexAdapter(defaultLanguage = "ja"): CardSourceAdapter {
+  const lang = langPath(defaultLanguage);
+
   return {
     id: "tcgdex",
     async searchCards(query, options) {
-      const lang = langPath(options?.language ?? defaultLanguage);
-      const cards = (await fetchTcgdex(`/${lang}/cards`)) as Record<string, unknown>[];
+      const language = langPath(options?.language ?? defaultLanguage);
       const q = query.trim().toLowerCase();
+      if (!q) return [];
+      const cards = (await fetchTcgdex(`/${language}/cards`)) as Record<string, unknown>[];
       return cards
         .filter((c) => String(c.name).toLowerCase().includes(q))
         .slice(0, options?.pageSize ?? 30)
-        .map((c) => mapCard(c, lang));
+        .map((c) => mapCard(c, language));
     },
     async getCard(externalId) {
-      const lang = langPath(defaultLanguage);
       try {
         const card = (await fetchTcgdex(
           `/${lang}/cards/${encodeURIComponent(externalId)}`,
@@ -57,15 +59,20 @@ export function createTcgdexAdapter(defaultLanguage = "en"): CardSourceAdapter {
       }
     },
     async importSet(setExternalId) {
-      const lang = langPath(defaultLanguage);
       const set = (await fetchTcgdex(
         `/${lang}/sets/${encodeURIComponent(setExternalId)}`,
       )) as Record<string, unknown>;
       const cardIds = (set.cards as { id: string }[] | undefined) ?? [];
       const cards: CardSearchResult[] = [];
-      for (const ref of cardIds.slice(0, 250)) {
-        const card = await this.getCard(ref.id);
-        if (card) cards.push(card);
+      for (const ref of cardIds.slice(0, 500)) {
+        try {
+          const card = (await fetchTcgdex(
+            `/${lang}/cards/${encodeURIComponent(ref.id)}`,
+          )) as Record<string, unknown>;
+          cards.push(mapCard(card, lang));
+        } catch {
+          /* skip missing */
+        }
       }
       return {
         setExternalId,
@@ -76,4 +83,4 @@ export function createTcgdexAdapter(defaultLanguage = "en"): CardSourceAdapter {
   };
 }
 
-export const tcgdexAdapter = createTcgdexAdapter();
+export const tcgdexAdapter = createTcgdexAdapter("ja");

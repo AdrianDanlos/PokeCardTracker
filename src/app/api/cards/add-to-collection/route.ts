@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const adapter = getAdapter(source);
+  const adapter = getAdapter(source, body.language as string | undefined);
   const result = await adapter.getCard(externalId);
   if (!result) {
     return NextResponse.json({ error: "Card not found" }, { status: 404 });

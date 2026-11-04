@@ -1,5 +1,6 @@
 "use client";
 
+import { CardImage } from "@/components/CardImage";
 import type { CollectionEntryWithCard } from "@/lib/types";
 
 export function CardGrid({
@@ -25,9 +26,12 @@ export function CardGrid({
               owned ? "card-tile-owned" : "card-tile-missing"
             } ${selected ? "ring-2 ring-accent" : "hover:border-accent/30"}`}
           >
-            <div className="mb-3 flex aspect-[3/4] items-center justify-center rounded-md bg-black/30 text-xs text-muted">
-              {entry.card.image_url || entry.card.image_path ? "Card art" : "No image"}
-            </div>
+            <CardImage
+              imagePath={entry.card.image_path}
+              imageUrl={entry.card.image_url}
+              alt={entry.card.name}
+              className="mb-3 aspect-[3/4] w-full"
+            />
             <div className="space-y-0.5">
               <p className="line-clamp-2 text-sm font-medium leading-tight">{entry.card.name}</p>
               <p className="text-xs text-muted">

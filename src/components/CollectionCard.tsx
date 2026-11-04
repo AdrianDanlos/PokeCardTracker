@@ -1,5 +1,7 @@
 import Link from "next/link";
+import Image from "next/image";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { coverImageSrc } from "@/lib/images";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 const GRADIENTS = [
@@ -18,19 +20,18 @@ export function CollectionCard({
 }) {
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const href = `/collections/${collection.collection_id}`;
+  const cover = coverImageSrc(collection.cover_image_path);
 
   return (
     <Link
       href={href}
       className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
     >
-      <div
-        className={`flex h-36 items-center justify-center bg-gradient-to-br ${gradient} text-sm text-muted`}
-      >
-        {collection.cover_image_path ? (
-          <span className="text-muted">Cover image</span>
+      <div className={`relative flex h-36 items-center justify-center bg-gradient-to-br ${gradient}`}>
+        {cover ? (
+          <Image src={cover} alt="" fill className="object-cover" sizes="400px" />
         ) : (
-          <span>Cover image</span>
+          <span className="text-sm text-muted">Cover image</span>
         )}
       </div>
       <div className="flex flex-1 flex-col gap-3 p-4">
