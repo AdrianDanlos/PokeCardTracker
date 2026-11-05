@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { CollectionCard } from "@/components/CollectionCard";
-import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { deleteCollectionById } from "@/lib/api/collections";
@@ -8,13 +7,13 @@ import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
   initialCollections,
-  collectionsLoading = false,
+  collectionsPending = false,
   loadError = null,
   onCollectionCreated,
   onCollectionDeleted,
 }: {
   initialCollections: CollectionProgressSummary[];
-  collectionsLoading?: boolean;
+  collectionsPending?: boolean;
   loadError?: string | null;
   onCollectionCreated: (col: CollectionProgressSummary) => void;
   onCollectionDeleted: (collectionId: string) => void;
@@ -76,11 +75,6 @@ export function DashboardClient({
 
       {loadError ? (
         <p className="py-10 text-center text-red-400">{loadError}</p>
-      ) : collectionsLoading ? (
-        <CollectionLoadingScreen
-          message="Loading collections…"
-          className="min-h-[calc(100vh-16rem)]"
-        />
       ) : (
         <>
           <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
@@ -95,7 +89,7 @@ export function DashboardClient({
             ))}
           </div>
 
-          {filtered.length === 0 && (
+          {!collectionsPending && filtered.length === 0 && (
             <p className="text-center text-muted">
               No collections yet. Create one to get started.
             </p>

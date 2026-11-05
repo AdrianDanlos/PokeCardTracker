@@ -86,11 +86,7 @@ export function CollectionPage() {
     return (
       <div className="space-y-3 text-center">
         <p className="text-red-400">{(summaryQuery.error as Error).message}</p>
-        <Link
-          to="/"
-          state={{ fromCollection: true }}
-          className="text-accent hover:underline"
-        >
+        <Link to="/" className="text-accent hover:underline">
           Back to collections
         </Link>
       </div>

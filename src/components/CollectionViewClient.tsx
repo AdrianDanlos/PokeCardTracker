@@ -454,7 +454,7 @@ export function CollectionViewClient({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
-        <Link to="/" state={{ fromCollection: true }} className="hover:text-accent">
+        <Link to="/" className="hover:text-accent">
           ← Collections
         </Link>
       </div>
