@@ -1,8 +1,12 @@
-import { AddCardsModal, type CatalogSearchRow } from "@/components/AddCardsModal";
+import {
+  AddCardsModal,
+  type CatalogSearchRow,
+} from "@/components/AddCardsModal";
 import { CardGrid } from "@/components/CardGrid";
 import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { EditCardModal } from "@/components/EditCardModal";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
+import { ReorderCollectionModal } from "@/components/ReorderCollectionModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import {
   removeEntryFromCollection,
@@ -20,7 +24,11 @@ import {
 } from "@/lib/api/cards";
 import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { JsonSetImportGroup } from "@/lib/json-set-import";
-import { DEFAULT_CARD_LANGUAGE, type CollectionEntryWithCard, type CollectionProgressSummary } from "@/lib/types";
+import {
+  DEFAULT_CARD_LANGUAGE,
+  type CollectionEntryWithCard,
+  type CollectionProgressSummary,
+} from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 
@@ -72,15 +80,24 @@ export function CollectionViewClient({
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [editEntry, setEditEntry] = useState<CollectionEntryWithCard | null>(null);
-  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
-  const [jsonImportProgress, setJsonImportProgress] = useState<string | null>(null);
+  const [showOrder, setShowOrder] = useState(false);
+  const [editEntry, setEditEntry] = useState<CollectionEntryWithCard | null>(
+    null,
+  );
+  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(
+    null,
+  );
+  const [jsonImportProgress, setJsonImportProgress] = useState<string | null>(
+    null,
+  );
   const [jsonImportError, setJsonImportError] = useState<string | null>(null);
   const [jsonImportUnresolved, setJsonImportUnresolved] = useState<{
     imported: number;
     unresolved: JsonSetImportUnresolved[];
   } | null>(null);
-  const [cardImageUploadError, setCardImageUploadError] = useState<string | null>(null);
+  const [cardImageUploadError, setCardImageUploadError] = useState<
+    string | null
+  >(null);
   const jsonImportOptimisticKeysRef = useRef<string[]>([]);
   const orderedEntries = useMemo(
     () => [...entries].sort((a, b) => a.position - b.position),
@@ -98,9 +115,14 @@ export function CollectionViewClient({
 
   const sortable = filter === "all" && !search.trim();
 
-  function applyCardDisplayUpdate(cardId: string, card: CollectionEntryWithCard["card"]) {
+  function applyCardDisplayUpdate(
+    cardId: string,
+    card: CollectionEntryWithCard["card"],
+  ) {
     setEntries((prev) =>
-      prev.map((e) => (e.card_id === cardId ? { ...e, card: { ...e.card, ...card } } : e)),
+      prev.map((e) =>
+        e.card_id === cardId ? { ...e, card: { ...e.card, ...card } } : e,
+      ),
     );
   }
 
@@ -127,11 +149,21 @@ export function CollectionViewClient({
   }
 
   const headerCollection = collection ?? initialCollection;
+  const hasOptimisticEntries = entries.some((e) => e.id.startsWith("optimistic-"));
+  const canReorderWithAi =
+    !cardsLoading &&
+    !!headerCollection &&
+    orderedEntries.length > 0 &&
+    !hasOptimisticEntries;
   const owned = headerCollection?.owned_entries ?? 0;
   const total = headerCollection?.total_entries ?? 0;
   const pct = total ? Math.round((100 * owned) / total) : 0;
 
-  function applyOwnedToEntries(cardId: string, owned: boolean, language: string | null) {
+  function applyOwnedToEntries(
+    cardId: string,
+    owned: boolean,
+    language: string | null,
+  ) {
     setEntries((prev) => {
       const next = prev.map((e) =>
         e.card_id === cardId ? { ...e, owned, owned_language: language } : e,
@@ -142,7 +174,9 @@ export function CollectionViewClient({
         return {
           ...c,
           owned_entries: ownedCount,
-          owned_percent: c.total_entries ? (100 * ownedCount) / c.total_entries : 0,
+          owned_percent: c.total_entries
+            ? (100 * ownedCount) / c.total_entries
+            : 0,
         };
       });
       return next;
@@ -172,7 +206,9 @@ export function CollectionViewClient({
     const collectionId = collection.collection_id;
     setEntries((prev) => {
       if (prev.some((e) => e.card.external_id === row.externalId)) return prev;
-      const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
+      const position = prev.length
+        ? Math.max(...prev.map((e) => e.position)) + 1
+        : 0;
       const tempKey = `optimistic-${row.externalId}`;
       const entry: CollectionEntryWithCard = {
         id: tempKey,
@@ -211,7 +247,9 @@ export function CollectionViewClient({
         return {
           ...c,
           total_entries: next.length,
-          owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+          owned_percent: c.total_entries
+            ? (100 * c.owned_entries) / next.length
+            : 0,
         };
       });
       return next;
@@ -228,7 +266,9 @@ export function CollectionViewClient({
     const collectionId = collection.collection_id;
     setEntries((prev) => {
       if (prev.some((e) => e.id === preview.tempKey)) return prev;
-      const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
+      const position = prev.length
+        ? Math.max(...prev.map((e) => e.position)) + 1
+        : 0;
       const entry: CollectionEntryWithCard = {
         id: preview.tempKey,
         collection_id: collectionId,
@@ -264,7 +304,9 @@ export function CollectionViewClient({
         return {
           ...c,
           total_entries: next.length,
-          owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+          owned_percent: c.total_entries
+            ? (100 * c.owned_entries) / next.length
+            : 0,
         };
       });
       return next;
@@ -328,18 +370,22 @@ export function CollectionViewClient({
     setJsonImportUnresolved(null);
     setJsonImportProgress("Importing cards…");
     try {
-      const result = await importJsonSetToCollection(groups, collection.collection_id, {
-        onProgress: (done, total) => {
-          setJsonImportProgress(`Importing cards & photos… ${done}/${total}`);
+      const result = await importJsonSetToCollection(
+        groups,
+        collection.collection_id,
+        {
+          onProgress: (done, total) => {
+            setJsonImportProgress(`Importing cards & photos… ${done}/${total}`);
+          },
+          onCardResolved: (preview) => {
+            jsonImportOptimisticKeysRef.current.push(preview.tempKey);
+            applyOptimisticJsonImportPreview(preview);
+          },
+          onCardCommitted: (committed) => {
+            commitOptimisticJsonImport(committed);
+          },
         },
-        onCardResolved: (preview) => {
-          jsonImportOptimisticKeysRef.current.push(preview.tempKey);
-          applyOptimisticJsonImportPreview(preview);
-        },
-        onCardCommitted: (committed) => {
-          commitOptimisticJsonImport(committed);
-        },
-      });
+      );
       await onReload();
       if (result.unresolved.length > 0) {
         setJsonImportUnresolved(result);
@@ -386,7 +432,10 @@ export function CollectionViewClient({
     setJsonImportError(null);
     setJsonImportProgress(`Fetching ${setName} from TCGPlayer…`);
     try {
-      const result = await importTcgplayerSet(collection.collection_id, setName);
+      const result = await importTcgplayerSet(
+        collection.collection_id,
+        setName,
+      );
       setJsonImportProgress(
         result.added > 0
           ? `Added ${result.added} cards from ${result.setName}.`
@@ -394,7 +443,9 @@ export function CollectionViewClient({
       );
       await onReload();
     } catch (e) {
-      setJsonImportError(e instanceof Error ? e.message : "TCGPlayer import failed");
+      setJsonImportError(
+        e instanceof Error ? e.message : "TCGPlayer import failed",
+      );
     } finally {
       window.setTimeout(() => setJsonImportProgress(null), 2500);
     }
@@ -420,7 +471,9 @@ export function CollectionViewClient({
             <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
               <p className="min-w-0 flex-1 whitespace-pre-line text-muted">
                 {headerCollection.description
-                  ? clampCollectionDescription(headerCollection.description.trim())
+                  ? clampCollectionDescription(
+                      headerCollection.description.trim(),
+                    )
                   : "\u00A0"}
               </p>
               <div className="w-full shrink-0 sm:max-w-md">
@@ -467,6 +520,14 @@ export function CollectionViewClient({
           </button>
           <button
             type="button"
+            className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={!canReorderWithAi}
+            onClick={() => setShowOrder(true)}
+          >
+            Order
+          </button>
+          <button
+            type="button"
             className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
             disabled={cardsLoading || !headerCollection}
             onClick={() => setShowAdd(true)}
@@ -504,7 +565,9 @@ export function CollectionViewClient({
           onToggleOwned={toggleOwned}
           onRemoveEntry={removeEntry}
           onEditEntry={
-            collection.collection_id.startsWith("demo-") ? undefined : setEditEntry
+            collection.collection_id.startsWith("demo-")
+              ? undefined
+              : setEditEntry
           }
           sortable={sortable}
           onReorder={sortable ? reorderEntries : undefined}
@@ -541,6 +604,14 @@ export function CollectionViewClient({
           onOptimisticCardAdd={applyOptimisticCatalogAdd}
           onOptimisticCardAddRevert={revertOptimisticCatalogAdd}
           onCardAddCommitted={commitOptimisticCatalogAdd}
+        />
+      )}
+      {showOrder && collection && (
+        <ReorderCollectionModal
+          collectionName={collection.name}
+          entries={orderedEntries}
+          onClose={() => setShowOrder(false)}
+          onApply={reorderEntries}
         />
       )}
       {showSettings && collection && (
