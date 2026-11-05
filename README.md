@@ -1,26 +1,21 @@
 # PokeCardTracker
 
-Single-user **React + Vite + TypeScript** app for custom Pokémon TCG collections. Uses **Supabase** (Postgres, Storage, magic-link auth, RLS) with **one cloud project** for local dev and production.
+Track custom Pokémon TCG collections. Build a set, mark what you own, and flip through it like a binder.
+
+![Collections on the dashboard](docs/screenshots/dashboard.png)
+
+![Japanese Gym Era, owned cards in the grid](docs/screenshots/collection.png)
 
 ## Features
 
-- Dashboard with collection tiles, search, progress bars
-- Collection view: All / Owned / Missing, filters, grid + 3×3 binder, stats panel
-- Card editor drawer (owned copies, condition, qty, price, notes)
-- **TCGdex-first** card search/import (Japanese + English, high-quality photos via [tcgdex.dev](https://tcgdex.dev/)); pokemontcg.io as secondary English source
-- Manual cards with image upload
-- CSV import for collections (settings)
+- Dashboard of collections with covers, search, and progress
+- Grid or 3×3 binder, with All / Owned / Missing and set filters
+- Owned state is per card, shared across collections
+- Add cards from a Japanese set ([The TCG OS](https://www.thetcgos.com/g/pokemon/japanese) or JSON), an English [TCGdex](https://tcgdex.dev/) search, or a manual entry with a photo
 
 ## Local development
 
-1. Copy `.env.example` → `.env.local` and set:
-
-   - `VITE_SUPABASE_URL`
-   - `VITE_SUPABASE_ANON_KEY`
-   - `VITE_AUTH_REDIRECT_URL=http://localhost:5173/auth/callback` (dev magic links)
-   - `SUPABASE_SERVICE_ROLE_KEY` (optional for client; used by scripts only)
-
-   In Supabase Dashboard, add `http://localhost:5173/**` under **Authentication → Redirect URLs** (see [DEPLOYMENT.md](./DEPLOYMENT.md)).
+1. Copy `.env.example` to `.env.local` and set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
 
 2. Install and run:
 
@@ -29,13 +24,14 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). **Local dev** auto signs in as an anonymous guest (no magic link). Production still uses magic link. Optional: `/login` on localhost to use your email account.
+Open [http://localhost:5173](http://localhost:5173). Dev signs in as an anonymous guest. Production uses a magic link (`/login`). Magic-link redirects are in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Scripts
 
-- `npm run dev` — Vite dev server (port 5173)
+- `npm run dev` — Vite on port 5173
 - `npm run build` / `npm run preview`
 - `npm run typecheck`
+- `npm run lint`
 
 ## Docs
 
