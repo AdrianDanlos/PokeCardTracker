@@ -2,6 +2,7 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { applyCollectionOrderImport } from "@/lib/api/collection-order";
 import { parseCollectionOrderJson } from "@/lib/collection-order-json";
+import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@/lib/collection-limits";
 import { deleteCollectionById } from "@/lib/api/collections";
 import { createClient } from "@/lib/supabase/client";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
@@ -148,7 +149,13 @@ export function CollectionSettingsModal({
       >
         <h2 className="text-xl font-semibold">Collection settings</h2>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
-        <textarea className="input min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
+        <textarea
+          className="input min-h-[80px]"
+          placeholder={`Description (max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
+          value={description}
+          maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
+          onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
+        />
         <input className="input" type="number" placeholder="Goal count" value={goal} onChange={(e) => setGoal(e.target.value)} />
         <CoverImageField
           existingCoverPath={collection.cover_image_path}

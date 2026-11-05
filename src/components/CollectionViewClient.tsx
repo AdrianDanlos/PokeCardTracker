@@ -5,6 +5,7 @@ import { ProgressBar } from "@/components/ui/ProgressBar";
 import { removeEntryFromCollection } from "@/lib/api/collection-entries";
 import { setCardOwned } from "@/lib/api/owned";
 import { downloadTextFile, exportCollectionOrderJson } from "@/lib/collection-order-json";
+import { clampCollectionDescription } from "@/lib/collection-limits";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
@@ -194,17 +195,23 @@ export function CollectionViewClient({
         </Link>
       </div>
 
-      <header className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <header className="space-y-3">
+        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
           <h1 className="text-3xl font-bold">{collection.name}</h1>
-          {collection.description && <p className="mt-2 text-muted">{collection.description}</p>}
-        </div>
-        <div className="w-full max-w-sm space-y-2">
-          <p className="text-right text-sm text-muted">
+          <p className="text-sm text-muted">
             {owned} / {total} owned · {pct}%
             {collection.goal_count ? ` · goal ${collection.goal_count}` : ""}
           </p>
-          <ProgressBar percent={pct} />
+        </div>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
+          <p className="min-w-0 flex-1 text-muted">
+            {collection.description
+              ? clampCollectionDescription(collection.description.trim())
+              : "\u00A0"}
+          </p>
+          <div className="w-full shrink-0 sm:max-w-md">
+            <ProgressBar percent={pct} />
+          </div>
         </div>
       </header>
 

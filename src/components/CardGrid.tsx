@@ -56,12 +56,14 @@ export function CardGrid({
                 alt={entry.card.name}
                 className="mb-3 aspect-[3/4] w-full shrink-0"
               />
-              <p className="line-clamp-2 min-h-[2.5rem] text-sm font-medium leading-tight">
-                {entry.card.name}
-              </p>
-              <p className="mt-0.5 line-clamp-2 min-h-[2rem] text-xs leading-snug text-muted">
-                {entry.card.set?.name?.trim() || "—"}
-              </p>
+              <div className="space-y-0.5">
+                <p className="line-clamp-2 text-sm font-medium leading-tight">
+                  {entry.card.name}
+                </p>
+                <p className="line-clamp-2 text-xs leading-tight text-muted">
+                  {entry.card.set?.name?.trim() || "—"}
+                </p>
+              </div>
             </button>
           </div>
         );

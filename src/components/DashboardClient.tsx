@@ -72,7 +72,7 @@ export function DashboardClient({
         </div>
       </header>
 
-      <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-2">
+      <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
         {filtered.map((c, i) => (
           <CollectionCard
             key={c.collection_id}

@@ -1,6 +1,7 @@
 import { Link } from "react-router-dom";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { coverImageSrc } from "@/lib/images";
+import { clampCollectionDescription } from "@/lib/collection-limits";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 const GRADIENTS = [
@@ -26,7 +27,7 @@ export function CollectionCard({
   const canDelete = onDelete && !collection.collection_id.startsWith("demo-");
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {canDelete && (
         <button
           type="button"
@@ -44,26 +45,28 @@ export function CollectionCard({
       )}
       <Link
         to={`/collections/${collection.collection_id}`}
-        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
+        className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
       >
-      <div className={`relative flex h-36 items-center justify-center bg-gradient-to-br ${gradient}`}>
+      <div className={`relative flex h-36 shrink-0 items-center justify-center bg-gradient-to-br ${gradient}`}>
         {cover ? (
           <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <span className="text-sm text-muted">Cover image</span>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-3 p-4">
-        <div>
-          <h2 className="text-lg font-semibold text-foreground group-hover:text-accent">
-            {collection.name}
-          </h2>
-          {collection.description && (
-            <p className="mt-1 line-clamp-2 text-sm text-muted">{collection.description}</p>
-          )}
+      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+        <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-foreground group-hover:text-accent">
+          {collection.name}
+        </h2>
+        <div className="flex min-h-[1.75rem] items-center gap-3">
+          <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-snug text-muted">
+            {clampCollectionDescription(collection.description?.trim() ?? "") || "\u00A0"}
+          </p>
+          <div className="w-[5.5rem] shrink-0">
+            <ProgressBar percent={Number(collection.owned_percent)} />
+          </div>
         </div>
-        <ProgressBar percent={Number(collection.owned_percent)} />
-        <div className="flex items-center justify-between text-sm">
+        <div className="mt-auto flex items-center justify-between text-sm">
           <span className="text-muted">
             {collection.owned_entries} / {collection.total_entries}
           </span>

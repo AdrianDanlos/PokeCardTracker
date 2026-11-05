@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
+import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { CollectionViewClient } from "@/components/CollectionViewClient";
 import { useAuth } from "@/lib/auth/AuthProvider";
 import { getCollectionEntries, getCollectionSummary } from "@/lib/data/collections";
@@ -32,7 +33,7 @@ export function CollectionPage() {
   }, [refetch]);
 
   if (!id) return null;
-  if (isLoading) return <p className="text-muted">Loading collection…</p>;
+  if (isLoading) return <CollectionLoadingScreen />;
   if (error || !data) {
     return (
       <div className="space-y-3 text-center">

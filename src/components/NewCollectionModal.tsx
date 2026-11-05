@@ -2,6 +2,7 @@
 
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { createClient } from "@/lib/supabase/client";
+import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@/lib/collection-limits";
 import type { CollectionProgressSummary } from "@/lib/types";
 import { useState } from "react";
 
@@ -106,9 +107,10 @@ export function NewCollectionModal({
         />
         <textarea
           className="input min-h-[80px]"
-          placeholder="Description (optional)"
+          placeholder="Description (optional, max 60 characters)"
           value={description}
-          onChange={(e) => setDescription(e.target.value)}
+          maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
+          onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
         />
         <input
           className="input"
