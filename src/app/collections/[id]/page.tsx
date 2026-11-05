@@ -1,5 +1,4 @@
 import { CollectionViewClient } from "@/components/CollectionViewClient";
-import { AuthBanner } from "@/components/AuthBanner";
 import {
   getCollectionEntries,
   getCollectionMeta,
@@ -19,14 +18,11 @@ export default async function CollectionPage({
   ]);
 
   return (
-    <>
-      <AuthBanner />
-      <CollectionViewClient
-        collection={meta}
-        initialEntries={entries}
-        breakdown={breakdown}
-        demo={demo}
-      />
-    </>
+    <CollectionViewClient
+      collection={meta}
+      initialEntries={entries}
+      breakdown={breakdown}
+      demo={demo}
+    />
   );
 }
