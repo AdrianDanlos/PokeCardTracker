@@ -38,7 +38,7 @@ export function ManualCardFormFields({
       />
       <input
         className="input"
-        placeholder="Set"
+        placeholder="Set Name"
         required
         value={setName}
         onChange={(e) => onSetNameChange(e.target.value)}

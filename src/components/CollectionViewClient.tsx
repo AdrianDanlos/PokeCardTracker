@@ -9,6 +9,7 @@ import {
   reorderCollectionEntries,
 } from "@/lib/api/collection-entries";
 import { setCardOwned } from "@/lib/api/owned";
+import { importTcgplayerSet } from "@/lib/api/tcgplayer-set";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { clampCollectionDescription } from "@/lib/collection-limits";
 import {
@@ -380,6 +381,25 @@ export function CollectionViewClient({
     });
   }
 
+  async function runTcgplayerImport(setName: string) {
+    if (!collection) return;
+    setJsonImportError(null);
+    setJsonImportProgress(`Fetching ${setName} from TCGPlayer…`);
+    try {
+      const result = await importTcgplayerSet(collection.collection_id, setName);
+      setJsonImportProgress(
+        result.added > 0
+          ? `Added ${result.added} cards from ${result.setName}.`
+          : `All ${result.total} cards from ${result.setName} were already in this collection.`,
+      );
+      await onReload();
+    } catch (e) {
+      setJsonImportError(e instanceof Error ? e.message : "TCGPlayer import failed");
+    } finally {
+      window.setTimeout(() => setJsonImportProgress(null), 2500);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3 text-sm text-muted">
@@ -517,6 +537,7 @@ export function CollectionViewClient({
           onClose={() => setShowAdd(false)}
           onAdded={onReload}
           onJsonImportStart={(groups) => void runJsonImport(groups)}
+          onTcgplayerImportStart={(setName) => void runTcgplayerImport(setName)}
           onOptimisticCardAdd={applyOptimisticCatalogAdd}
           onOptimisticCardAddRevert={revertOptimisticCatalogAdd}
           onCardAddCommitted={commitOptimisticCatalogAdd}

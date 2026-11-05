@@ -35,6 +35,7 @@ export function AddCardsModal({
   onOptimisticCardAddRevert,
   onCardAddCommitted,
   onJsonImportStart,
+  onTcgplayerImportStart,
 }: {
   collectionId: string;
   onClose: () => void;
@@ -46,8 +47,10 @@ export function AddCardsModal({
     ids: { cardId: string; entryId?: string; imagePath?: string | null },
   ) => void;
   onJsonImportStart?: (groups: JsonSetImportGroup[]) => void;
+  onTcgplayerImportStart?: (setName: string) => void;
 }) {
   const [tab, setTab] = useState<"search" | "json" | "manual">("json");
+  const [jsonMode, setJsonMode] = useState<"choose" | "ai">("choose");
   const [query, setQuery] = useState("");
   const [jsonText, setJsonText] = useState("");
   const [cardRowsById, setCardRowsById] = useState<Map<string, CatalogSearchRow>>(() => new Map());
@@ -213,7 +216,7 @@ export function AddCardsModal({
       onClick={onBackdropClick}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
+        className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-hidden rounded-xl border border-border bg-surface-elevated p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-cards-title"
@@ -236,13 +239,14 @@ export function AddCardsModal({
               onClick={() => {
                 setTab(t);
                 setError(null);
+                if (t === "json") setJsonMode("choose");
               }}
             >
-              {t === "search" ? "Import card" : t === "json" ? "Import JSON" : "Manual"}
+              {t === "search" ? "Import card" : t === "json" ? "Import Set" : "Manual"}
             </button>
           ))}
         </div>
-        <div className="min-h-0">
+        <div className="min-h-0 overflow-y-auto">
           {tab === "search" && (
             <div className="space-y-3">
               <p className="text-sm text-muted">Only english cards available</p>
@@ -276,58 +280,106 @@ export function AddCardsModal({
 
           {tab === "json" && (
             <div className="space-y-3">
-              <div className="space-y-3 rounded-lg border border-border bg-black/20 p-3">
-                <ol className="list-decimal space-y-3 pl-5 text-sm text-muted">
-                  <li className="space-y-2">
-                    <span>Japanese set</span>
-                    <input
-                      className="input mt-1 w-full text-foreground"
-                      placeholder="e.g. Leader's Stadium"
-                      value={jsonJapaneseSetName}
-                      onChange={(e) => {
-                        setJsonJapaneseSetName(e.target.value);
-                        setJsonPromptCopied(false);
-                      }}
-                      disabled={loading}
-                    />
-                  </li>
-                  <li>Copy prompt</li>
-                  <li>Paste to AI to get results</li>
-                  <li>Ask AI to reorder the cards to match the binder order we want</li>
-                  <li>Paste the JSON below</li>
-                </ol>
-                <button
-                  type="button"
-                  className="btn-ghost w-full text-sm disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={!canCopyJsonPrompt}
-                  aria-disabled={!canCopyJsonPrompt}
-                  onClick={() => {
-                    if (!canCopyJsonPrompt) return;
-                    const promptText = buildJsonSetImportAiPrompt(jsonJapaneseSetNameTrimmed);
-                    void navigator.clipboard.writeText(promptText).then(() => {
-                      setJsonPromptCopied(true);
-                      window.setTimeout(() => setJsonPromptCopied(false), 2000);
-                    });
+              <div className="mb-5 space-y-1.5 text-sm">
+                <label className="block text-muted" htmlFor="import-set-japanese-name">
+                  Japanese set
+                </label>
+                <input
+                  id="import-set-japanese-name"
+                  className="input w-full text-foreground"
+                  placeholder="e.g. Leader's Stadium"
+                  value={jsonJapaneseSetName}
+                  onChange={(e) => {
+                    setJsonJapaneseSetName(e.target.value);
+                    setJsonPromptCopied(false);
                   }}
-                >
-                  {jsonPromptCopied ? "Copied" : "Copy prompt"}
-                </button>
+                  disabled={loading}
+                />
+                <p className="text-xs leading-snug text-muted">
+                  Take a look at the decks here:{" "}
+                  <a
+                    href="https://www.thetcgos.com/g/pokemon/japanese"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent underline-offset-2 hover:underline"
+                  >
+                    https://www.thetcgos.com/g/pokemon/japanese
+                  </a>
+                </p>
               </div>
-              <textarea
-                className="input min-h-[200px] font-mono text-xs"
-                placeholder={`[\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym1"],\n    "cards": [\n      { "name": "Misty's Psyduck", "id": "gym1-15" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym2"],\n    "cards": [\n      { "name": "Erika's Vileplume", "id": "gym2-42" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": [],\n    "cards": [\n      { "name": "Japan-only card", "id": null }\n    ]\n  }\n]`}
-                value={jsonText}
-                onChange={(e) => setJsonText(e.target.value)}
-                disabled={loading}
-              />
-              <button
-                type="button"
-                className="btn-primary w-full"
-                onClick={() => void importJsonSet()}
-                disabled={loading || !jsonText.trim()}
-              >
-                Import JSON into collection
-              </button>
+              {jsonMode === "choose" ? (
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <button
+                    type="button"
+                    className="btn-primary flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canCopyJsonPrompt}
+                    onClick={() => {
+                      if (!canCopyJsonPrompt) return;
+                      onClose();
+                      onTcgplayerImportStart?.(jsonJapaneseSetNameTrimmed);
+                    }}
+                  >
+                    Fetch with TCGPlayer
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost flex-1 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={!canCopyJsonPrompt}
+                    onClick={() => setJsonMode("ai")}
+                  >
+                    Fetch with AI
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-3 rounded-lg border border-border bg-black/20 p-3">
+                    <ol className="list-decimal space-y-3 pl-5 text-sm text-muted">
+                      <li>Copy prompt</li>
+                      <li>Paste to AI to get results</li>
+                      <li>Ask AI to reorder the cards to match the binder order we want</li>
+                      <li>Paste the JSON below</li>
+                    </ol>
+                    <button
+                      type="button"
+                      className="btn-ghost w-full text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                      disabled={!canCopyJsonPrompt}
+                      aria-disabled={!canCopyJsonPrompt}
+                      onClick={() => {
+                        if (!canCopyJsonPrompt) return;
+                        const promptText = buildJsonSetImportAiPrompt(jsonJapaneseSetNameTrimmed);
+                        void navigator.clipboard.writeText(promptText).then(() => {
+                          setJsonPromptCopied(true);
+                          window.setTimeout(() => setJsonPromptCopied(false), 2000);
+                        });
+                      }}
+                    >
+                      {jsonPromptCopied ? "Copied" : "Copy prompt"}
+                    </button>
+                  </div>
+                  <textarea
+                    className="input min-h-[200px] font-mono text-xs"
+                    placeholder={`[\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym1"],\n    "cards": [\n      { "name": "Misty's Psyduck", "id": "gym1-15" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym2"],\n    "cards": [\n      { "name": "Erika's Vileplume", "id": "gym2-42" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": [],\n    "cards": [\n      { "name": "Japan-only card", "id": null }\n    ]\n  }\n]`}
+                    value={jsonText}
+                    onChange={(e) => setJsonText(e.target.value)}
+                    disabled={loading}
+                  />
+                  <button
+                    type="button"
+                    className="btn-primary w-full"
+                    onClick={() => void importJsonSet()}
+                    disabled={loading || !jsonText.trim()}
+                  >
+                    Import JSON into collection
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-ghost w-full text-sm"
+                    onClick={() => setJsonMode("choose")}
+                  >
+                    Back
+                  </button>
+                </>
+              )}
             </div>
           )}
 
