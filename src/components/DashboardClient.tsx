@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { CollectionCard } from "@/components/CollectionCard";
+import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { deleteCollectionById } from "@/lib/api/collections";
@@ -7,10 +8,14 @@ import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
   initialCollections,
+  collectionsLoading = false,
+  loadError = null,
   onCollectionCreated,
   onCollectionDeleted,
 }: {
   initialCollections: CollectionProgressSummary[];
+  collectionsLoading?: boolean;
+  loadError?: string | null;
   onCollectionCreated: (col: CollectionProgressSummary) => void;
   onCollectionDeleted: (collectionId: string) => void;
 }) {
@@ -69,17 +74,34 @@ export function DashboardClient({
         </div>
       </header>
 
-      <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
-        {filtered.map((c, i) => (
-          <CollectionCard
-            key={c.collection_id}
-            collection={c}
-            index={i}
-            onDelete={() => setDeleteTarget(c)}
-            deleting={deletingId === c.collection_id}
-          />
-        ))}
-      </div>
+      {loadError ? (
+        <p className="py-10 text-center text-red-400">{loadError}</p>
+      ) : collectionsLoading ? (
+        <CollectionLoadingScreen
+          message="Loading collections…"
+          className="min-h-[calc(100vh-16rem)]"
+        />
+      ) : (
+        <>
+          <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
+            {filtered.map((c, i) => (
+              <CollectionCard
+                key={c.collection_id}
+                collection={c}
+                index={i}
+                onDelete={() => setDeleteTarget(c)}
+                deleting={deletingId === c.collection_id}
+              />
+            ))}
+          </div>
+
+          {filtered.length === 0 && (
+            <p className="text-center text-muted">
+              No collections yet. Create one to get started.
+            </p>
+          )}
+        </>
+      )}
 
       <ConfirmDialog
         open={deleteTarget != null}
@@ -95,10 +117,6 @@ export function DashboardClient({
         }}
         onConfirm={() => void confirmDeleteCollection()}
       />
-
-      {filtered.length === 0 && (
-        <p className="text-center text-muted">No collections yet. Create one to get started.</p>
-      )}
 
       {showNew && (
         <NewCollectionModal

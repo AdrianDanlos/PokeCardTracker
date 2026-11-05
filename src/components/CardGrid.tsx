@@ -28,8 +28,8 @@ function entryStableKey(entry: CollectionEntryWithCard) {
     : entry.id;
 }
 
-/** Hold at least this long on the image before drag starts; shorter press toggles owned. */
-const DRAG_HOLD_MS = 100;
+/** Pointer must move this far before a drag starts; release without dragging toggles owned. */
+const DRAG_ACTIVATION_DISTANCE_PX = 0;
 
 function CardTileBody({
   entry,
@@ -40,7 +40,6 @@ function CardTileBody({
   imageDragProps,
   setNodeRef,
   setActivatorNodeRef,
-  onImagePointerDownCapture,
   onImagePointerUp,
   style,
 }: {
@@ -49,11 +48,10 @@ function CardTileBody({
   onRemoveEntry: (entry: CollectionEntryWithCard) => void;
   onEditEntry?: (entry: CollectionEntryWithCard) => void;
   className?: string;
-  /** Long-press on image to drag; short tap on image toggles owned via onImagePointerUp. */
+  /** Drag image after moving pointer; release without drag toggles owned via onImagePointerUp. */
   imageDragProps?: Record<string, unknown>;
   setNodeRef?: (node: HTMLElement | null) => void;
   setActivatorNodeRef?: (node: HTMLElement | null) => void;
-  onImagePointerDownCapture?: (entryId: string) => void;
   onImagePointerUp?: (entryId: string) => void;
   style?: CSSProperties;
 }) {
@@ -104,7 +102,6 @@ function CardTileBody({
           <div
             ref={setActivatorNodeRef}
             className="mb-3 w-full shrink-0 cursor-grab select-none active:cursor-grabbing"
-            onPointerDownCapture={() => onImagePointerDownCapture?.(entry.id)}
             {...imageDragProps}
             onPointerUp={(e) => {
               if (e.button !== 0) return;
@@ -191,7 +188,6 @@ function SortableCardTile({
   onRemoveEntry,
   onEditEntry,
   onImageClick,
-  onImagePointerDownCapture,
   onImagePointerUp,
   dragDisabled,
 }: {
@@ -199,7 +195,6 @@ function SortableCardTile({
   onRemoveEntry: (entry: CollectionEntryWithCard) => void;
   onEditEntry?: (entry: CollectionEntryWithCard) => void;
   onImageClick: (entry: CollectionEntryWithCard) => void;
-  onImagePointerDownCapture?: (entryId: string) => void;
   onImagePointerUp?: (entryId: string) => void;
   dragDisabled: boolean;
 }) {
@@ -226,7 +221,6 @@ function SortableCardTile({
       onEditEntry={onEditEntry}
       setNodeRef={dragDisabled ? undefined : setNodeRef}
       setActivatorNodeRef={dragDisabled ? undefined : setActivatorNodeRef}
-      onImagePointerDownCapture={onImagePointerDownCapture}
       onImagePointerUp={onImagePointerUp}
       style={style}
       imageDragProps={
@@ -235,7 +229,7 @@ function SortableCardTile({
           : {
               ...attributes,
               ...listeners,
-              "aria-label": `Hold to reorder ${entry.card.name}, tap to toggle owned`,
+              "aria-label": `Drag ${entry.card.name} to reorder; release without dragging to toggle owned`,
             }
       }
     />
@@ -257,17 +251,16 @@ export function CardGrid({
   sortable?: boolean;
   onReorder?: (orderedEntryIds: string[]) => void;
 }) {
-  const dragHoldActivation = { delay: DRAG_HOLD_MS, tolerance: 10 };
+  const dragActivation = { distance: DRAG_ACTIVATION_DISTANCE_PX };
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: dragHoldActivation }),
-    useSensor(TouchSensor, { activationConstraint: dragHoldActivation }),
+    useSensor(MouseSensor, { activationConstraint: dragActivation }),
+    useSensor(TouchSensor, { activationConstraint: dragActivation }),
     useSensor(KeyboardSensor),
   );
 
   const sortableIds = entries.map((e) => e.id);
   const [activeEntry, setActiveEntry] = useState<CollectionEntryWithCard | null>(null);
   const suppressToggleAfterDragRef = useRef(false);
-  const imagePointerDownAt = useRef<Map<string, number>>(new Map());
 
   function handleDragStart(event: DragStartEvent) {
     suppressToggleAfterDragRef.current = true;
@@ -303,22 +296,13 @@ export function CardGrid({
     }, 400);
   }
 
-  function noteImagePointerDown(entryId: string) {
-    imagePointerDownAt.current.set(entryId, Date.now());
-  }
-
   function handleImagePointerUp(entryId: string) {
-    const started = imagePointerDownAt.current.get(entryId);
-    const heldMs = started != null ? Date.now() - started : null;
-    imagePointerDownAt.current.delete(entryId);
     if (suppressToggleAfterDragRef.current) {
       suppressToggleAfterDragRef.current = false;
       return;
     }
-    if (heldMs != null && heldMs < DRAG_HOLD_MS) {
-      const entry = entries.find((e) => e.id === entryId);
-      if (entry) onToggleOwned(entry);
-    }
+    const entry = entries.find((e) => e.id === entryId);
+    if (entry) onToggleOwned(entry);
   }
 
   if (!sortable || !onReorder) {
@@ -354,7 +338,6 @@ export function CardGrid({
               onRemoveEntry={onRemoveEntry}
               onEditEntry={onEditEntry}
               onImageClick={handleToggleFromSortable}
-              onImagePointerDownCapture={noteImagePointerDown}
               onImagePointerUp={handleImagePointerUp}
               dragDisabled={entry.id.startsWith("optimistic-")}
             />
