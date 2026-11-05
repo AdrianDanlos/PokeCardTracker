@@ -36,6 +36,7 @@ export function CatalogAutocomplete({
   onSelect,
   minChars = 1,
   disabled,
+  required,
   dropDirection = "down",
 }: {
   value: string;
@@ -46,6 +47,7 @@ export function CatalogAutocomplete({
   onSelect: (option: CatalogAutocompleteOption) => void;
   minChars?: number;
   disabled?: boolean;
+  required?: boolean;
   /** inline = list in layout (pushes content below); up/down = floating overlay */
   dropDirection?: "down" | "up" | "inline";
 }) {
@@ -63,12 +65,13 @@ export function CatalogAutocomplete({
   }, [options, value]);
 
   useEffect(() => {
-    function onDocPointerDown(e: MouseEvent) {
+    if (!open) return;
+    function onDocClick(e: MouseEvent) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDocPointerDown);
-    return () => document.removeEventListener("mousedown", onDocPointerDown);
-  }, []);
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
+  }, [open]);
 
   function pick(option: CatalogAutocompleteOption) {
     onSelect(option);
@@ -103,7 +106,7 @@ export function CatalogAutocomplete({
           ? "mt-2 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
           : dropDirection === "up"
             ? "absolute bottom-full z-30 mb-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
-            : "absolute z-30 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
+            : "absolute z-50 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
       }
     >
       {loading && options.length === 0 && (
@@ -151,6 +154,7 @@ export function CatalogAutocomplete({
         placeholder={placeholder}
         value={value}
         disabled={disabled}
+        required={required}
         autoComplete="off"
         role="combobox"
         aria-expanded={showPanel}
@@ -161,6 +165,7 @@ export function CatalogAutocomplete({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
+        onClick={() => setOpen(true)}
         onBlur={() => {
           window.setTimeout(() => setOpen(false), 120);
         }}

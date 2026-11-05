@@ -34,6 +34,7 @@ const TCGDEX_CATALOG_LANGUAGE = "en" as const;
 
 export function AddCardsModal({
   collectionId,
+  collectionSetNames = [],
   onClose,
   onAdded,
   onOptimisticCardAdd,
@@ -43,6 +44,7 @@ export function AddCardsModal({
   onTcgplayerImportStart,
 }: {
   collectionId: string;
+  collectionSetNames?: string[];
   onClose: () => void;
   onAdded: () => void;
   onOptimisticCardAdd?: (row: CatalogSearchRow) => void;
@@ -275,7 +277,9 @@ export function AddCardsModal({
             </button>
           ))}
         </div>
-        <div className="min-h-0 overflow-y-auto">
+        <div
+          className={`min-h-0 ${tab === "json" ? "overflow-y-auto" : "overflow-visible"}`}
+        >
           {tab === "search" && (
             <div className="space-y-3">
               <p className="text-sm text-muted">Only english cards available</p>
@@ -450,6 +454,7 @@ export function AddCardsModal({
                 setName={manualSetName}
                 onNameChange={setManualName}
                 onSetNameChange={setManualSetName}
+                collectionSetNames={collectionSetNames}
                 imageFile={manualImage}
                 onImageFileChange={setManualImage}
                 disabled={loading}

@@ -2,6 +2,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { tcgdxImageBaseUrl } from "@/lib/adapters/tcgdex";
 import type { CardSearchResult, CardSourceId } from "@/lib/types";
 
+function normalizeSetDisplayName(setName: string): string {
+  return setName.trim().replace(/\s+/g, " ");
+}
+
 export async function upsertSetFromSearch(
   supabase: SupabaseClient,
   sourceId: CardSourceId,
@@ -10,14 +14,28 @@ export async function upsertSetFromSearch(
   language: string,
 ) {
   if (!setName) return null;
-  const external_id = setExternalId ?? setName.toLowerCase().replace(/\s+/g, "-");
+  const name = normalizeSetDisplayName(setName);
+
+  if (sourceId === "manual") {
+    const { data: sameName, error: lookupErr } = await supabase
+      .from("sets")
+      .select("id, source_id")
+      .ilike("name", name);
+    if (lookupErr) throw lookupErr;
+    if (sameName?.length) {
+      const tcgdex = sameName.find((row) => row.source_id === "tcgdex");
+      return (tcgdex ?? sameName[0]).id as string;
+    }
+  }
+
+  const external_id = setExternalId ?? name.toLowerCase().replace(/\s+/g, "-");
   const { data, error } = await supabase
     .from("sets")
     .upsert(
       {
         source_id: sourceId,
         external_id,
-        name: setName,
+        name,
         language,
       },
       { onConflict: "source_id,external_id" },

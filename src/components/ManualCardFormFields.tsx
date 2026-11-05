@@ -1,10 +1,16 @@
 import { CoverImageField } from "@/components/ui/CoverImageField";
+import {
+  CatalogAutocomplete,
+  type CatalogAutocompleteOption,
+} from "@/components/ui/CatalogAutocomplete";
+import { useMemo } from "react";
 
 export function ManualCardFormFields({
   name,
   setName,
   onNameChange,
   onSetNameChange,
+  collectionSetNames = [],
   imageFile,
   onImageFileChange,
   imagePreviewUrl,
@@ -16,6 +22,8 @@ export function ManualCardFormFields({
   setName: string;
   onNameChange: (value: string) => void;
   onSetNameChange: (value: string) => void;
+  /** Set names already used in this collection (shown on focus / click). */
+  collectionSetNames?: string[];
   imageFile?: File | null;
   onImageFileChange?: (file: File | null) => void;
   imagePreviewUrl?: string | null;
@@ -23,6 +31,14 @@ export function ManualCardFormFields({
   disabled?: boolean;
   nameAutoFocus?: boolean;
 }) {
+  const setNameOptions = useMemo((): CatalogAutocompleteOption[] => {
+    const q = setName.trim().toLowerCase();
+    const filtered = q
+      ? collectionSetNames.filter((label) => label.toLowerCase().includes(q))
+      : collectionSetNames;
+    return filtered.map((label) => ({ id: label, label }));
+  }, [collectionSetNames, setName]);
+
   return (
     <>
       <input
@@ -34,14 +50,30 @@ export function ManualCardFormFields({
         disabled={disabled}
         autoFocus={nameAutoFocus}
       />
-      <input
-        className="input"
-        placeholder="Set Name"
-        required
-        value={setName}
-        onChange={(e) => onSetNameChange(e.target.value)}
-        disabled={disabled}
-      />
+      {collectionSetNames.length > 0 ? (
+        <div className="relative w-full">
+          <CatalogAutocomplete
+            value={setName}
+            onChange={onSetNameChange}
+            options={setNameOptions}
+            minChars={0}
+            dropDirection="down"
+            placeholder="Set name"
+            disabled={disabled}
+            required
+            onSelect={(opt) => onSetNameChange(opt.label)}
+          />
+        </div>
+      ) : (
+        <input
+          className="input"
+          placeholder="Set name"
+          required
+          value={setName}
+          onChange={(e) => onSetNameChange(e.target.value)}
+          disabled={disabled}
+        />
+      )}
       {showPhoto && onImageFileChange != null && (
         <CoverImageField
           label=""

@@ -7,11 +7,13 @@ import { useMemo, useRef, useState } from "react";
 
 export function EditCardModal({
   entry,
+  collectionSetNames = [],
   onClose,
   onSaved,
   onImageUploadFailed,
 }: {
   entry: CollectionEntryWithCard;
+  collectionSetNames?: string[];
   onClose: () => void;
   onSaved: (updated: CollectionEntryWithCard["card"]) => void;
   onImageUploadFailed?: (message: string) => void;
@@ -125,6 +127,7 @@ export function EditCardModal({
             setName={setLabel}
             onNameChange={setCardName}
             onSetNameChange={setSetLabel}
+            collectionSetNames={collectionSetNames}
             imageFile={imageFile}
             onImageFileChange={setImageFile}
             imagePreviewUrl={imagePreviewUrl}

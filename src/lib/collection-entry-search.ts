@@ -25,13 +25,16 @@ export function matchesCollectionEntrySearch(
 
 export const COLLECTION_SET_FILTER_NONE = "__none__";
 
+/** Collapse whitespace for set filter grouping (same label → one filter option). */
+export function normalizeCollectionSetFilterName(name: string): string {
+  return name.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 export function collectionEntrySetFilterKey(
   entry: CollectionEntryWithCard,
 ): string {
-  const set = entry.card.set;
-  if (set?.id) return `set:${set.id}`;
-  const name = set?.name?.trim();
-  if (name) return `name:${name.toLowerCase()}`;
+  const name = entry.card.set?.name?.trim();
+  if (name) return `name:${normalizeCollectionSetFilterName(name)}`;
   return COLLECTION_SET_FILTER_NONE;
 }
 
@@ -64,4 +67,13 @@ export function listCollectionSetFilterOptions(
     withSet.push({ key: noneKey, label: byKey.get(noneKey)! });
   }
   return withSet;
+}
+
+/** Unique set display names already used in a collection (sorted for pickers). */
+export function listCollectionSetNamesFromEntries(
+  entries: CollectionEntryWithCard[],
+): string[] {
+  return listCollectionSetFilterOptions(entries)
+    .filter((o) => o.key !== COLLECTION_SET_FILTER_NONE)
+    .map((o) => o.label);
 }

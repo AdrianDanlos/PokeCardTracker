@@ -67,11 +67,11 @@ export function FilterSelect({
 
   useEffect(() => {
     if (!open) return;
-    function onDocPointerDown(e: MouseEvent) {
+    function onDocClick(e: MouseEvent) {
       if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener("mousedown", onDocPointerDown);
-    return () => document.removeEventListener("mousedown", onDocPointerDown);
+    document.addEventListener("click", onDocClick);
+    return () => document.removeEventListener("click", onDocClick);
   }, [open]);
 
   function pick(next: string | null) {

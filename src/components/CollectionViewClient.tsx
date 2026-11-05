@@ -32,6 +32,7 @@ import {
 import {
   collectionEntrySetFilterKey,
   listCollectionSetFilterOptions,
+  listCollectionSetNamesFromEntries,
   matchesCollectionEntrySearch,
 } from "@/lib/collection-entry-search";
 import type { JsonSetImportGroup } from "@/lib/json-set-import";
@@ -149,6 +150,10 @@ export function CollectionViewClient({
   );
   const setFilterOptions = useMemo(
     () => listCollectionSetFilterOptions(orderedEntries),
+    [orderedEntries],
+  );
+  const collectionSetNames = useMemo(
+    () => listCollectionSetNamesFromEntries(orderedEntries),
     [orderedEntries],
   );
   const filtered = useMemo(() => {
@@ -748,6 +753,7 @@ export function CollectionViewClient({
       {editEntry && (
         <EditCardModal
           entry={editEntry}
+          collectionSetNames={collectionSetNames}
           onClose={() => setEditEntry(null)}
           onSaved={(card) => {
             applyCardDisplayUpdate(editEntry.card_id, card);
@@ -768,6 +774,7 @@ export function CollectionViewClient({
       {showAdd && collection && (
         <AddCardsModal
           collectionId={collection.collection_id}
+          collectionSetNames={collectionSetNames}
           onClose={() => setShowAdd(false)}
           onAdded={onReload}
           onJsonImportStart={(groups) => void runJsonImport(groups)}
