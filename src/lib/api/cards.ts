@@ -30,6 +30,35 @@ export type JsonSetImportResult = {
   unresolved: JsonSetImportUnresolved[];
 };
 
+export type JsonSetImportCardPreview = {
+  tempKey: string;
+  name: string;
+  setLabel: string;
+  imageUrl: string | null;
+  index: number;
+  total: number;
+};
+
+export type JsonSetImportCardCommitted = {
+  tempKey: string;
+  cardId: string;
+  entryId: string;
+  imagePath: string | null;
+};
+
+export type JsonSetImportHooks = {
+  onProgress?: (done: number, total: number) => void;
+  onCardResolved?: (event: JsonSetImportCardPreview) => void;
+  onCardCommitted?: (event: JsonSetImportCardCommitted) => void;
+};
+
+function normalizeJsonSetImportHooks(
+  hooks?: JsonSetImportHooks | ((done: number, total: number) => void),
+): JsonSetImportHooks {
+  if (typeof hooks === "function") return { onProgress: hooks };
+  return hooks ?? {};
+}
+
 /** Same catalog fetch + DB upsert + image cache path as single-card API add. */
 async function syncCatalogCardFromApi(
   supabase: SupabaseClient,
@@ -222,7 +251,7 @@ async function insertManualImportCard(
     enRef: EnCatalogRef | null;
     unresolvedReason?: string;
   },
-): Promise<void> {
+): Promise<{ cardId: string; entryId: string; imagePath: string | null }> {
   const setId = await upsertSetFromSearch(
     supabase,
     "manual",
@@ -251,8 +280,9 @@ async function insertManualImportCard(
     .single();
   if (cardErr) throw new Error(cardErr.message);
 
+  let imagePath: string | null = null;
   if (params.enRef?.imageUrl) {
-    const imagePath = await cacheRemoteImage(
+    imagePath = await cacheRemoteImage(
       supabase,
       userId,
       card.id as string,
@@ -263,19 +293,30 @@ async function insertManualImportCard(
     }
   }
 
-  const { error: entryErr } = await supabase.from("collection_entries").insert({
-    collection_id: params.collectionId,
-    card_id: card.id,
-    position: params.position,
-  });
+  const { data: entry, error: entryErr } = await supabase
+    .from("collection_entries")
+    .insert({
+      collection_id: params.collectionId,
+      card_id: card.id,
+      position: params.position,
+    })
+    .select("id")
+    .single();
   if (entryErr) throw new Error(entryErr.message);
+
+  return {
+    cardId: card.id as string,
+    entryId: entry.id as string,
+    imagePath,
+  };
 }
 
 export async function importJsonSetToCollection(
   groups: JsonSetImportGroup[],
   collectionId: string,
-  onProgress?: (done: number, total: number) => void,
+  hooks?: JsonSetImportHooks | ((done: number, total: number) => void),
 ): Promise<JsonSetImportResult> {
+  const { onProgress, onCardResolved, onCardCommitted } = normalizeJsonSetImportHooks(hooks);
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Unauthorized");
@@ -296,9 +337,14 @@ export async function importJsonSetToCollection(
   const enSetIndexCache = new Map<string, Map<string, EnCatalogRef[]>>();
   const unresolved: JsonSetImportUnresolved[] = [];
   const total = rows.length;
+  const importBatchId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `import-${Date.now()}`;
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
+    const tempKey = `optimistic-json-${importBatchId}-${i}`;
     let enSetIndex: Map<string, EnCatalogRef[]> | null = null;
     if (row.enSets.length > 0) {
       const cacheKey = row.enSets.map((s) => s.toLowerCase()).join("\0");
@@ -315,13 +361,28 @@ export async function importJsonSetToCollection(
       unresolved.push({ name: row.name, set: row.setLabel, reason });
     }
 
-    await insertManualImportCard(supabase, userData.user.id, {
+    onCardResolved?.({
+      tempKey,
+      name: row.name,
+      setLabel: row.setLabel,
+      imageUrl: ref?.imageUrl ?? null,
+      index: i,
+      total,
+    });
+
+    const inserted = await insertManualImportCard(supabase, userData.user.id, {
       collectionId,
       position,
       setLabel: row.setLabel,
       name: row.name,
       enRef: ref,
       unresolvedReason: ref ? undefined : reason,
+    });
+    onCardCommitted?.({
+      tempKey,
+      cardId: inserted.cardId,
+      entryId: inserted.entryId,
+      imagePath: inserted.imagePath,
     });
     position += 1;
     onProgress?.(i + 1, total);
@@ -397,4 +458,79 @@ export async function createManualCard(
     .single();
   if (entryErr) throw new Error(entryErr.message);
   return entry.id as string;
+}
+
+export async function updateCardDisplay(params: {
+  cardId: string;
+  language: string;
+  name: string;
+  setName: string;
+}) {
+  const name = params.name.trim();
+  const setName = params.setName.trim();
+  if (!name) throw new Error("Card name is required");
+  if (!setName) throw new Error("Set name is required");
+
+  const supabase = createClient();
+  const setId = await upsertSetFromSearch(supabase, "manual", null, setName, params.language);
+
+  const { data: card, error } = await supabase
+    .from("cards")
+    .update({ name, set_id: setId })
+    .eq("id", params.cardId)
+    .select(
+      `
+        id, source_id, external_id, set_id, name, language,
+        image_path, image_url, attrs,
+        set:sets ( id, source_id, external_id, name, series, language, release_date, image_path )
+      `,
+    )
+    .single();
+  if (error) throw new Error(error.message);
+
+  type SetRow = {
+    id: string;
+    source_id: string;
+    external_id: string | null;
+    name: string;
+    series: string | null;
+    language: string;
+    release_date: string | null;
+    image_path: string | null;
+  };
+
+  const raw = card as {
+    id: string;
+    source_id: string;
+    external_id: string | null;
+    set_id: string | null;
+    name: string;
+    language: string;
+    image_path: string | null;
+    image_url: string | null;
+    attrs: Record<string, unknown>;
+    set: SetRow | SetRow[] | null;
+  };
+
+  const setNested = raw.set;
+  const setRow =
+    setNested == null ? null : Array.isArray(setNested) ? (setNested[0] ?? null) : setNested;
+
+  return {
+    id: raw.id,
+    source_id: raw.source_id as CardSourceId,
+    external_id: raw.external_id,
+    set_id: raw.set_id,
+    name: raw.name,
+    language: raw.language,
+    image_path: raw.image_path,
+    image_url: raw.image_url,
+    attrs: raw.attrs ?? {},
+    set: setRow
+      ? {
+          ...setRow,
+          source_id: setRow.source_id as CardSourceId,
+        }
+      : null,
+  };
 }

@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { useRef, useState, type CSSProperties } from "react";
 import { CardImage } from "@/components/CardImage";
+import { PencilIcon } from "@/components/ui/PencilIcon";
 import type { CollectionEntryWithCard } from "@/lib/types";
 
 function entryStableKey(entry: CollectionEntryWithCard) {
@@ -34,6 +35,7 @@ function CardTileBody({
   entry,
   onToggleOwned,
   onRemoveEntry,
+  onEditEntry,
   className = "",
   imageDragProps,
   setNodeRef,
@@ -45,6 +47,7 @@ function CardTileBody({
   entry: CollectionEntryWithCard;
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
   onRemoveEntry: (entry: CollectionEntryWithCard) => void;
+  onEditEntry?: (entry: CollectionEntryWithCard) => void;
   className?: string;
   /** Long-press on image to drag; short tap on image toggles owned via onImagePointerUp. */
   imageDragProps?: Record<string, unknown>;
@@ -60,7 +63,7 @@ function CardTileBody({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex h-full min-h-0 flex-col rounded-lg p-3 hover:border-accent/30 ${
+      className={`relative flex h-full min-h-0 flex-col rounded-lg p-3 hover:border-accent/30 ${
         dragFromImage ? "transition-[border-color,box-shadow] duration-150" : "transition"
       } ${owned ? "card-tile-owned" : "card-tile-missing"} ${className}`}
     >
@@ -146,6 +149,20 @@ function CardTileBody({
           </div>
         </button>
       )}
+      {onEditEntry && !entry.id.startsWith("optimistic-") ? (
+        <button
+          type="button"
+          aria-label={`Edit ${entry.card.name}`}
+          className="absolute bottom-2 right-2 z-10 flex h-7 w-7 items-center justify-center rounded-md border border-border bg-surface-elevated/95 text-muted shadow-sm transition hover:border-accent/40 hover:text-accent"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            onEditEntry(entry);
+          }}
+        >
+          <PencilIcon className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -172,6 +189,7 @@ function DragOverlayTile({ entry }: { entry: CollectionEntryWithCard }) {
 function SortableCardTile({
   entry,
   onRemoveEntry,
+  onEditEntry,
   onImageClick,
   onImagePointerDownCapture,
   onImagePointerUp,
@@ -179,6 +197,7 @@ function SortableCardTile({
 }: {
   entry: CollectionEntryWithCard;
   onRemoveEntry: (entry: CollectionEntryWithCard) => void;
+  onEditEntry?: (entry: CollectionEntryWithCard) => void;
   onImageClick: (entry: CollectionEntryWithCard) => void;
   onImagePointerDownCapture?: (entryId: string) => void;
   onImagePointerUp?: (entryId: string) => void;
@@ -204,6 +223,7 @@ function SortableCardTile({
       entry={entry}
       onToggleOwned={onImageClick}
       onRemoveEntry={onRemoveEntry}
+      onEditEntry={onEditEntry}
       setNodeRef={dragDisabled ? undefined : setNodeRef}
       setActivatorNodeRef={dragDisabled ? undefined : setActivatorNodeRef}
       onImagePointerDownCapture={onImagePointerDownCapture}
@@ -226,12 +246,14 @@ export function CardGrid({
   entries,
   onToggleOwned,
   onRemoveEntry,
+  onEditEntry,
   sortable = false,
   onReorder,
 }: {
   entries: CollectionEntryWithCard[];
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
   onRemoveEntry: (entry: CollectionEntryWithCard) => void;
+  onEditEntry?: (entry: CollectionEntryWithCard) => void;
   sortable?: boolean;
   onReorder?: (orderedEntryIds: string[]) => void;
 }) {
@@ -308,6 +330,7 @@ export function CardGrid({
             entry={entry}
             onToggleOwned={onToggleOwned}
             onRemoveEntry={onRemoveEntry}
+            onEditEntry={onEditEntry}
           />
         ))}
       </div>
@@ -329,6 +352,7 @@ export function CardGrid({
               key={entry.id}
               entry={entry}
               onRemoveEntry={onRemoveEntry}
+              onEditEntry={onEditEntry}
               onImageClick={handleToggleFromSortable}
               onImagePointerDownCapture={noteImagePointerDown}
               onImagePointerUp={handleImagePointerUp}

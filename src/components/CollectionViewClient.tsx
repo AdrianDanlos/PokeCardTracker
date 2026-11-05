@@ -1,5 +1,6 @@
 import { AddCardsModal, type CatalogSearchRow } from "@/components/AddCardsModal";
 import { CardGrid } from "@/components/CardGrid";
+import { EditCardModal } from "@/components/EditCardModal";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import {
@@ -9,10 +10,17 @@ import {
 import { setCardOwned } from "@/lib/api/owned";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { clampCollectionDescription } from "@/lib/collection-limits";
+import {
+  importJsonSetToCollection,
+  type JsonSetImportCardCommitted,
+  type JsonSetImportCardPreview,
+  type JsonSetImportUnresolved,
+} from "@/lib/api/cards";
 import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
-import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
+import type { JsonSetImportGroup } from "@/lib/json-set-import";
+import { DEFAULT_CARD_LANGUAGE, type CollectionEntryWithCard, type CollectionProgressSummary } from "@/lib/types";
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 type FilterMode = "all" | "owned" | "missing";
 
@@ -46,7 +54,15 @@ export function CollectionViewClient({
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [editEntry, setEditEntry] = useState<CollectionEntryWithCard | null>(null);
   const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
+  const [jsonImportProgress, setJsonImportProgress] = useState<string | null>(null);
+  const [jsonImportError, setJsonImportError] = useState<string | null>(null);
+  const [jsonImportUnresolved, setJsonImportUnresolved] = useState<{
+    imported: number;
+    unresolved: JsonSetImportUnresolved[];
+  } | null>(null);
+  const jsonImportOptimisticKeysRef = useRef<string[]>([]);
   const orderedEntries = useMemo(
     () => [...entries].sort((a, b) => a.position - b.position),
     [entries],
@@ -62,6 +78,12 @@ export function CollectionViewClient({
   }, [orderedEntries, filter, search]);
 
   const sortable = filter === "all" && !search.trim();
+
+  function applyCardDisplayUpdate(cardId: string, card: CollectionEntryWithCard["card"]) {
+    setEntries((prev) =>
+      prev.map((e) => (e.card_id === cardId ? { ...e, card: { ...e.card, ...card } } : e)),
+    );
+  }
 
   function reorderEntries(orderedIds: string[]) {
     const byId = new Map(entries.map((e) => [e.id, e]));
@@ -170,6 +192,73 @@ export function CollectionViewClient({
     applyRemoveEntry(tempKey);
   }
 
+  function applyOptimisticJsonImportPreview(preview: JsonSetImportCardPreview) {
+    setEntries((prev) => {
+      if (prev.some((e) => e.id === preview.tempKey)) return prev;
+      const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
+      const entry: CollectionEntryWithCard = {
+        id: preview.tempKey,
+        collection_id: collection.collection_id,
+        card_id: preview.tempKey,
+        position,
+        owned: false,
+        owned_language: null,
+        card: {
+          id: preview.tempKey,
+          source_id: "manual",
+          external_id: null,
+          set_id: null,
+          name: preview.name,
+          language: DEFAULT_CARD_LANGUAGE,
+          image_path: null,
+          image_url: preview.imageUrl,
+          attrs: {},
+          set: {
+            id: `${preview.tempKey}-set`,
+            source_id: "manual",
+            external_id: null,
+            name: preview.setLabel,
+            series: null,
+            language: DEFAULT_CARD_LANGUAGE,
+            release_date: null,
+            image_path: null,
+          },
+        },
+      };
+      const next = [...prev, entry];
+      setCollection((c) => ({
+        ...c,
+        total_entries: next.length,
+        owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+      }));
+      return next;
+    });
+  }
+
+  function revertOptimisticJsonImport(tempKey: string) {
+    applyRemoveEntry(tempKey);
+  }
+
+  function commitOptimisticJsonImport(committed: JsonSetImportCardCommitted) {
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (e.id !== committed.tempKey) return e;
+        return {
+          ...e,
+          id: committed.entryId,
+          card_id: committed.cardId,
+          card: {
+            ...e.card,
+            id: committed.cardId,
+            image_path: e.card.image_url
+              ? e.card.image_path
+              : (committed.imagePath ?? e.card.image_path),
+          },
+        };
+      }),
+    );
+  }
+
   function commitOptimisticCatalogAdd(
     externalId: string,
     ids: { cardId: string; entryId?: string; imagePath?: string | null },
@@ -194,6 +283,41 @@ export function CollectionViewClient({
         };
       }),
     );
+  }
+
+  async function runJsonImport(groups: JsonSetImportGroup[]) {
+    if (collection.collection_id.startsWith("demo-")) return;
+    jsonImportOptimisticKeysRef.current = [];
+    setJsonImportError(null);
+    setJsonImportUnresolved(null);
+    setJsonImportProgress("Importing cards…");
+    try {
+      const result = await importJsonSetToCollection(groups, collection.collection_id, {
+        onProgress: (done, total) => {
+          setJsonImportProgress(`Importing cards & photos… ${done}/${total}`);
+        },
+        onCardResolved: (preview) => {
+          jsonImportOptimisticKeysRef.current.push(preview.tempKey);
+          applyOptimisticJsonImportPreview(preview);
+        },
+        onCardCommitted: (committed) => {
+          commitOptimisticJsonImport(committed);
+        },
+      });
+      await onReload();
+      if (result.unresolved.length > 0) {
+        setJsonImportUnresolved(result);
+      }
+    } catch (e) {
+      for (const tempKey of jsonImportOptimisticKeysRef.current) {
+        revertOptimisticJsonImport(tempKey);
+      }
+      jsonImportOptimisticKeysRef.current = [];
+      setJsonImportError(e instanceof Error ? e.message : "Import failed");
+      void onReload();
+    } finally {
+      setJsonImportProgress(null);
+    }
   }
 
   function removeEntry(entry: CollectionEntryWithCard) {
@@ -271,30 +395,60 @@ export function CollectionViewClient({
         </div>
       </div>
 
-      <div className="max-w-md">
-        <input
-          className="input w-full"
-          placeholder="Search name or set"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && onReload()}
-        />
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+        <div className="min-w-[12rem] max-w-md flex-1">
+          <input
+            className="input w-full"
+            placeholder="Search name or set"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onReload()}
+          />
+        </div>
+        {search.trim() ? (
+          <p className="text-sm text-muted tabular-nums">
+            {filtered.length} {filtered.length === 1 ? "result" : "results"}
+          </p>
+        ) : null}
       </div>
 
       <CardGrid
         entries={filtered}
         onToggleOwned={toggleOwned}
         onRemoveEntry={removeEntry}
+        onEditEntry={
+          collection.collection_id.startsWith("demo-") ? undefined : setEditEntry
+        }
         sortable={sortable}
         onReorder={sortable ? reorderEntries : undefined}
       />
 
+      {editEntry && (
+        <EditCardModal
+          entry={editEntry}
+          onClose={() => setEditEntry(null)}
+          onSaved={(card) => {
+            applyCardDisplayUpdate(editEntry.card_id, card);
+            setEditEntry(null);
+          }}
+        />
+      )}
+      {jsonImportProgress && (
+        <div
+          className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-lg border border-border bg-surface-elevated px-4 py-2 text-sm text-muted shadow-lg"
+          role="status"
+          aria-live="polite"
+        >
+          {jsonImportProgress}
+        </div>
+      )}
       {showAdd && (
         <AddCardsModal
           collectionId={collection.collection_id}
           collectionName={collection.name}
           onClose={() => setShowAdd(false)}
           onAdded={onReload}
+          onJsonImportStart={(groups) => void runJsonImport(groups)}
           onOptimisticCardAdd={applyOptimisticCatalogAdd}
           onOptimisticCardAddRevert={revertOptimisticCatalogAdd}
           onCardAddCommitted={commitOptimisticCatalogAdd}
@@ -318,6 +472,24 @@ export function CollectionViewClient({
         title="Could not save settings"
         description={settingsSaveError ?? ""}
         onClose={() => setSettingsSaveError(null)}
+      />
+      <AlertDialog
+        open={jsonImportError != null}
+        title="Import failed"
+        description={jsonImportError ?? ""}
+        onClose={() => setJsonImportError(null)}
+      />
+      <AlertDialog
+        open={jsonImportUnresolved != null}
+        title="Import finished with warnings"
+        description={
+          jsonImportUnresolved
+            ? `Imported ${jsonImportUnresolved.imported} cards. ${jsonImportUnresolved.unresolved.length} without a matching English image:\n${jsonImportUnresolved.unresolved
+                .map((u) => `• ${u.name} (${u.set}) — ${u.reason}`)
+                .join("\n")}`
+            : ""
+        }
+        onClose={() => setJsonImportUnresolved(null)}
       />
     </div>
   );

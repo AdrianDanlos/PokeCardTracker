@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import {
   addCardToCollection,
   createManualCard,
-  importJsonSetToCollection,
   suggestCatalogCards,
-  type JsonSetImportUnresolved,
 } from "@/lib/api/cards";
+import type { JsonSetImportGroup } from "@/lib/json-set-import";
+import { buildJsonSetImportAiPrompt } from "@/lib/json-set-import-ai-prompt";
 import { parseJsonSetImport } from "@/lib/json-set-import";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
@@ -35,6 +35,7 @@ export function AddCardsModal({
   onOptimisticCardAdd,
   onOptimisticCardAddRevert,
   onCardAddCommitted,
+  onJsonImportStart,
 }: {
   collectionId: string;
   collectionName: string;
@@ -46,6 +47,7 @@ export function AddCardsModal({
     externalId: string,
     ids: { cardId: string; entryId?: string; imagePath?: string | null },
   ) => void;
+  onJsonImportStart?: (groups: JsonSetImportGroup[]) => void;
 }) {
   const [tab, setTab] = useState<"search" | "json" | "manual">("json");
   const [query, setQuery] = useState("");
@@ -61,12 +63,12 @@ export function AddCardsModal({
   const [addErrorDialog, setAddErrorDialog] = useState<string | null>(null);
   const [cardSuggestLoading, setCardSuggestLoading] = useState(false);
   const [cardSuggestions, setCardSuggestions] = useState<CatalogAutocompleteOption[]>([]);
-  const [importProgress, setImportProgress] = useState<string | null>(null);
-  const [importSummary, setImportSummary] = useState<{
-    imported: number;
-    unresolved: JsonSetImportUnresolved[];
-  } | null>(null);
   const [manualProgress, setManualProgress] = useState<string | null>(null);
+  const [jsonJapaneseSetName, setJsonJapaneseSetName] = useState("");
+  const [jsonPromptCopied, setJsonPromptCopied] = useState(false);
+
+  const jsonJapaneseSetNameTrimmed = jsonJapaneseSetName.trim();
+  const canCopyJsonPrompt = jsonJapaneseSetNameTrimmed.length > 0 && !loading;
 
   const debouncedQuery = useDebouncedValue(query, 280);
   const trimmedCardQuery = query.trim();
@@ -122,27 +124,14 @@ export function AddCardsModal({
     setSuccessMessage(message);
   }
 
-  async function importJsonSet() {
-    setLoading(true);
+  function importJsonSet() {
     setError(null);
-    setImportSummary(null);
-    setImportProgress("Parsing JSON…");
     try {
       const groups = parseJsonSetImport(jsonText);
-      const result = await importJsonSetToCollection(groups, collectionId, (done, total) => {
-        setImportProgress(`Importing cards & photos… ${done}/${total}`);
-      });
-      onAdded();
-      if (result.unresolved.length === 0) {
-        onClose();
-        return;
-      }
-      setImportSummary(result);
+      onClose();
+      onJsonImportStart?.(groups);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setLoading(false);
-      setImportProgress(null);
     }
   }
 
@@ -247,7 +236,6 @@ export function AddCardsModal({
               className={`chip ${tab === t ? "chip-active" : ""}`}
               onClick={() => {
                 setTab(t);
-                setImportSummary(null);
                 setError(null);
               }}
             >
@@ -289,41 +277,57 @@ export function AddCardsModal({
 
           {tab === "json" && (
             <div className="space-y-3">
-              <p className="text-xs text-muted">
-                Paste a set group or array of groups. Card names and set labels are yours; English
-                TCGdex ids in <code className="text-foreground">enSets</code> / optional{" "}
-                <code className="text-foreground">id</code> per card supply photos. Order in the file
-                is collection order (appended after existing cards).
-              </p>
+              <div className="space-y-3 rounded-lg border border-border bg-black/20 p-3">
+                <ol className="list-decimal space-y-3 pl-5 text-sm text-muted">
+                  <li className="space-y-2">
+                    <span>Japanese set</span>
+                    <input
+                      className="input mt-1 w-full text-foreground"
+                      placeholder="e.g. Leader's Stadium"
+                      value={jsonJapaneseSetName}
+                      onChange={(e) => {
+                        setJsonJapaneseSetName(e.target.value);
+                        setJsonPromptCopied(false);
+                      }}
+                      disabled={loading}
+                    />
+                  </li>
+                  <li>Copy prompt</li>
+                  <li>Paste to AI to get results (DeepSeek recommended)</li>
+                  <li>Ask AI to reorder the cards to match the binder order we want</li>
+                  <li>Paste the JSON below</li>
+                </ol>
+                <button
+                  type="button"
+                  className="btn-ghost w-full text-sm disabled:cursor-not-allowed disabled:opacity-40"
+                  disabled={!canCopyJsonPrompt}
+                  aria-disabled={!canCopyJsonPrompt}
+                  onClick={() => {
+                    if (!canCopyJsonPrompt) return;
+                    const promptText = buildJsonSetImportAiPrompt(jsonJapaneseSetNameTrimmed);
+                    void navigator.clipboard.writeText(promptText).then(() => {
+                      setJsonPromptCopied(true);
+                      window.setTimeout(() => setJsonPromptCopied(false), 2000);
+                    });
+                  }}
+                >
+                  {jsonPromptCopied ? "Copied" : "Copy prompt"}
+                </button>
+              </div>
               <textarea
                 className="input min-h-[200px] font-mono text-xs"
-                placeholder={`{\n  "set": "Leader's Stadium",\n  "enSets": ["gym1"],\n  "cards": [{ "name": "Erika's Vileplume" }]\n}`}
+                placeholder={`[\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym1"],\n    "cards": [\n      { "name": "Misty's Psyduck", "id": "gym1-15" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": ["gym2"],\n    "cards": [\n      { "name": "Erika's Vileplume", "id": "gym2-42" }\n    ]\n  },\n  {\n    "set": "Leader's Stadium",\n    "enSets": [],\n    "cards": [\n      { "name": "Japan-only card", "id": null }\n    ]\n  }\n]`}
                 value={jsonText}
                 onChange={(e) => setJsonText(e.target.value)}
                 disabled={loading}
               />
-              {importSummary && importSummary.unresolved.length > 0 && (
-                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-                  <p className="font-medium text-amber-200">
-                    Imported {importSummary.imported} cards. {importSummary.unresolved.length} without
-                    a matching English image:
-                  </p>
-                  <ul className="mt-2 max-h-32 list-inside list-disc overflow-y-auto text-xs text-muted">
-                    {importSummary.unresolved.map((u) => (
-                      <li key={`${u.set}:${u.name}`}>
-                        {u.name} ({u.set}) — {u.reason}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
               <button
                 type="button"
                 className="btn-primary w-full"
                 onClick={() => void importJsonSet()}
                 disabled={loading || !jsonText.trim()}
               >
-                {loading && importProgress ? importProgress : "Import JSON into collection"}
+                Import JSON into collection
               </button>
             </div>
           )}
