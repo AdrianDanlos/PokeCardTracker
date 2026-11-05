@@ -6,6 +6,8 @@ import {
   deleteCollectionById,
   reorderCollections,
 } from "@/lib/api/collections";
+import { useAuth } from "@/lib/auth/AuthProvider";
+import { seedGuestSampleDataForCurrentUser } from "@/lib/dev/seedGuestSampleData";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
@@ -28,10 +30,27 @@ export function DashboardClient({
   useEffect(() => {
     setCollections(initialCollections);
   }, [initialCollections]);
+  const { isDevGuest } = useAuth();
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CollectionProgressSummary | null>(null);
+  const [seedingGuest, setSeedingGuest] = useState(false);
+  const [seedError, setSeedError] = useState<string | null>(null);
+
+  async function loadGuestSampleData() {
+    setSeedingGuest(true);
+    setSeedError(null);
+    try {
+      const seeded = await seedGuestSampleDataForCurrentUser();
+      setCollections(seeded);
+      for (const col of seeded) onCollectionCreated(col);
+    } catch (err) {
+      setSeedError(err instanceof Error ? err.message : "Could not load sample data");
+    } finally {
+      setSeedingGuest(false);
+    }
+  }
 
   async function confirmDeleteCollection() {
     const collection = deleteTarget;
@@ -118,9 +137,22 @@ export function DashboardClient({
           />
 
           {!collectionsPending && filtered.length === 0 && (
-            <p className="text-center text-muted">
-              No collections yet. Create one to get started.
-            </p>
+            <div className="space-y-3 text-center">
+              <p className="text-muted">No collections yet. Create one to get started.</p>
+              {isDevGuest && (
+                <div className="space-y-2">
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    disabled={seedingGuest}
+                    onClick={() => void loadGuestSampleData()}
+                  >
+                    {seedingGuest ? "Loading sample data…" : "Load sample data"}
+                  </button>
+                  {seedError ? <p className="text-sm text-red-400">{seedError}</p> : null}
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
