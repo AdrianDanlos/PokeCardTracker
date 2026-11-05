@@ -1,13 +1,12 @@
 import { useEffect, useState } from "react";
 import {
   addCardToCollection,
-  bulkAddCardsToCollection,
   createManualCard,
   importSetToCollection,
-  searchCatalogCards,
   suggestCatalogCards,
   suggestCatalogSets,
 } from "@/lib/api/cards";
+import { AlertDialog } from "@/components/ui/AlertDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import {
   CatalogAutocomplete,
@@ -16,40 +15,60 @@ import {
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { DEFAULT_CARD_LANGUAGE } from "@/lib/types";
 
-type SearchRow = { externalId: string; name: string; setName: string | null };
+export type CatalogSearchRow = {
+  externalId: string;
+  name: string;
+  setName: string | null;
+  imageUrl: string | null;
+};
+
+/** TCGdex catalog for API search / set import is English-only in this app. */
+const TCGDEX_CATALOG_LANGUAGE = "en" as const;
 
 export function AddCardsModal({
   collectionId,
   collectionName,
   onClose,
   onAdded,
+  onOptimisticCardAdd,
+  onOptimisticCardAddRevert,
+  onCardAddCommitted,
 }: {
   collectionId: string;
   collectionName: string;
   onClose: () => void;
   onAdded: () => void;
+  onOptimisticCardAdd?: (row: CatalogSearchRow) => void;
+  onOptimisticCardAddRevert?: (externalId: string) => void;
+  onCardAddCommitted?: (
+    externalId: string,
+    ids: { cardId: string; entryId?: string; imagePath?: string | null },
+  ) => void;
 }) {
-  const [tab, setTab] = useState<"search" | "set" | "manual">("search");
-  const [tcgLanguage, setTcgLanguage] = useState<"jp" | "en">("jp");
+  const [tab, setTab] = useState<"search" | "set" | "manual">("set");
   const [query, setQuery] = useState("");
   const [setId, setSetId] = useState("");
-  const [results, setResults] = useState<SearchRow[]>([]);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [cardRowsById, setCardRowsById] = useState<Map<string, CatalogSearchRow>>(() => new Map());
+  const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
+  const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [manual, setManual] = useState({
-    name: "",
-    language: DEFAULT_CARD_LANGUAGE,
-  });
+  const [manualName, setManualName] = useState("");
   const [manualImage, setManualImage] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [addErrorDialog, setAddErrorDialog] = useState<string | null>(null);
   const [cardSuggestLoading, setCardSuggestLoading] = useState(false);
   const [setSuggestLoading, setSetSuggestLoading] = useState(false);
   const [cardSuggestions, setCardSuggestions] = useState<CatalogAutocompleteOption[]>([]);
   const [setSuggestions, setSetSuggestions] = useState<CatalogAutocompleteOption[]>([]);
   const [importProgress, setImportProgress] = useState<string | null>(null);
+  const [manualProgress, setManualProgress] = useState<string | null>(null);
 
   const debouncedQuery = useDebouncedValue(query, 280);
   const debouncedSetId = useDebouncedValue(setId, 280);
+  const trimmedCardQuery = query.trim();
+  const trimmedDebouncedCardQuery = debouncedQuery.trim();
+  const cardSearchSettled = trimmedCardQuery === trimmedDebouncedCardQuery;
 
   useEffect(() => {
     if (tab !== "search") {
@@ -59,20 +78,31 @@ export function AddCardsModal({
     const q = debouncedQuery.trim();
     if (q.length < 2) {
       setCardSuggestions([]);
+      setCardRowsById(new Map());
       return;
     }
     let cancelled = false;
     setCardSuggestLoading(true);
-    suggestCatalogCards({ q, language: tcgLanguage })
+    suggestCatalogCards({ q, language: TCGDEX_CATALOG_LANGUAGE })
       .then((rows) => {
         if (cancelled) return;
-        setCardSuggestions(
-          rows.map((r) => ({
+        const byId = new Map<string, CatalogSearchRow>();
+        const options: CatalogAutocompleteOption[] = rows.map((r) => {
+          byId.set(r.externalId, {
+            externalId: r.externalId,
+            name: r.name,
+            setName: r.setName,
+            imageUrl: r.imageUrl ?? null,
+          });
+          return {
             id: r.externalId,
-            label: r.name,
+            label: r.setName ? `${r.name} · ${r.setName}` : r.name,
             detail: r.externalId,
-          })),
-        );
+            imageUrl: r.imageUrl ?? null,
+          };
+        });
+        setCardRowsById(byId);
+        setCardSuggestions(options);
       })
       .catch(() => {
         if (!cancelled) setCardSuggestions([]);
@@ -83,7 +113,7 @@ export function AddCardsModal({
     return () => {
       cancelled = true;
     };
-  }, [debouncedQuery, tcgLanguage, tab]);
+  }, [debouncedQuery, tab]);
 
   useEffect(() => {
     if (tab !== "set") {
@@ -97,7 +127,7 @@ export function AddCardsModal({
     }
     let cancelled = false;
     setSetSuggestLoading(true);
-    suggestCatalogSets({ q, language: tcgLanguage })
+    suggestCatalogSets({ q, language: TCGDEX_CATALOG_LANGUAGE })
       .then((rows) => {
         if (cancelled) return;
         setSetSuggestions(
@@ -117,24 +147,10 @@ export function AddCardsModal({
     return () => {
       cancelled = true;
     };
-  }, [debouncedSetId, tcgLanguage, tab]);
+  }, [debouncedSetId, tab]);
 
-  async function runSearch(searchQuery = query) {
-    setLoading(true);
-    setError(null);
-    try {
-      const rows = await searchCatalogCards({
-        q: searchQuery,
-        source: "tcgdex",
-        language: tcgLanguage,
-      });
-      setResults(rows);
-      setSelected(new Set(rows.map((r) => r.externalId)));
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Search failed");
-    } finally {
-      setLoading(false);
-    }
+  function showSuccess(message: string) {
+    setSuccessMessage(message);
   }
 
   async function importSet() {
@@ -147,7 +163,7 @@ export function AddCardsModal({
           source: "tcgdex",
           setExternalId: setId.trim(),
           collectionId,
-          language: tcgLanguage,
+          language: TCGDEX_CATALOG_LANGUAGE,
         },
         (done, total) => {
           setImportProgress(`Importing cards & photos… ${done}/${total}`);
@@ -163,42 +179,40 @@ export function AddCardsModal({
     }
   }
 
-  async function addResult(externalId: string) {
-    setLoading(true);
-    setError(null);
-    try {
-      await addCardToCollection({
-        source: "tcgdex",
-        externalId,
-        collectionId,
-        language: tcgLanguage,
-      });
-      onAdded();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add card");
-    } finally {
-      setLoading(false);
-    }
-  }
+  async function addResult(row: CatalogSearchRow) {
+    if (addedIds.has(row.externalId) || addingIds.has(row.externalId)) return;
 
-  async function addSelectedBulk() {
-    const ids = [...selected];
-    if (ids.length === 0) return;
-    setLoading(true);
-    setError(null);
+    showSuccess(`Added “${row.name}” to your collection`);
+    setQuery("");
+    setCardSuggestions([]);
+    setCardRowsById(new Map());
+    setAddingIds((prev) => new Set(prev).add(row.externalId));
+    onOptimisticCardAdd?.(row);
+
     try {
-      await bulkAddCardsToCollection({
+      const { cardId, entryId, imagePath } = await addCardToCollection({
         source: "tcgdex",
-        externalIds: ids,
+        externalId: row.externalId,
         collectionId,
-        language: tcgLanguage,
+        language: TCGDEX_CATALOG_LANGUAGE,
       });
-      onAdded();
-      onClose();
+      setAddedIds((prev) => new Set(prev).add(row.externalId));
+      onCardAddCommitted?.(row.externalId, { cardId, entryId, imagePath });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Bulk add failed");
+      setSuccessMessage(null);
+      onOptimisticCardAddRevert?.(row.externalId);
+      setAddedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.externalId);
+        return next;
+      });
+      setAddErrorDialog(e instanceof Error ? e.message : "Could not add card");
     } finally {
-      setLoading(false);
+      setAddingIds((prev) => {
+        const next = new Set(prev);
+        next.delete(row.externalId);
+        return next;
+      });
     }
   }
 
@@ -206,128 +220,101 @@ export function AddCardsModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
+    setManualProgress("Creating card…");
     try {
-      await createManualCard({
-        collectionId,
-        name: manual.name,
-        setName: collectionName,
-        language: manual.language,
-        imageFile: manualImage,
-      });
+      await createManualCard(
+        {
+          collectionId,
+          name: manualName,
+          setName: collectionName,
+          language: DEFAULT_CARD_LANGUAGE,
+          imageFile: manualImage,
+        },
+        setManualProgress,
+      );
       onAdded();
       onClose();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create card");
     } finally {
       setLoading(false);
+      setManualProgress(null);
     }
   }
 
-  function toggleSelected(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function requestClose() {
+    if (loading) return;
+    onClose();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={requestClose}
+      role="presentation"
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-cards-title"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl font-semibold">Add cards</h2>
+          <h2 id="add-cards-title" className="text-xl font-semibold">
+            Add cards
+          </h2>
           <button type="button" className="btn-ghost py-1" onClick={onClose}>
             Close
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(["search", "set", "manual"] as const).map((t) => (
+          {(["set", "search", "manual"] as const).map((t) => (
             <button
               key={t}
               type="button"
               className={`chip ${tab === t ? "chip-active" : ""}`}
               onClick={() => setTab(t)}
             >
-              {t === "search" ? "API search" : t === "set" ? "Import set" : "Manual"}
+              {t === "search" ? "Import card" : t === "set" ? "Import set" : "Manual"}
             </button>
           ))}
         </div>
         <div className="min-h-0">
-          {tab !== "manual" && (
-            <label className="mb-3 block text-sm">
-              <span className="text-muted">TCGdex language</span>
-              <select
-                className="input mt-1"
-                value={tcgLanguage}
-                onChange={(e) => setTcgLanguage(e.target.value as "jp" | "en")}
-              >
-                <option value="jp">Japanese (jp)</option>
-                <option value="en">English (en)</option>
-              </select>
-            </label>
-          )}
-
           {tab === "search" && (
             <div className="space-y-3">
-              <div className="flex gap-2">
-                <CatalogAutocomplete
-                  value={query}
-                  onChange={setQuery}
-                  options={cardSuggestions}
-                  loading={cardSuggestLoading}
-                  minChars={2}
-                  placeholder="Search card name"
-                  disabled={loading}
-                  onSelect={(opt) => {
-                    setQuery(opt.label);
-                    void runSearch(opt.label);
-                  }}
-                />
-                <button
-                  type="button"
-                  className="btn-primary shrink-0"
-                  onClick={() => void runSearch()}
-                  disabled={loading}
-                >
-                  Search
-                </button>
-              </div>
-              {results.length > 0 && (
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" className="btn-ghost text-xs" onClick={() => setSelected(new Set(results.map((r) => r.externalId)))}>
-                    Select all
-                  </button>
-                  <button type="button" className="btn-primary text-xs" onClick={addSelectedBulk} disabled={loading || selected.size === 0}>
-                    Add {selected.size} selected
-                  </button>
-                </div>
+              <p className="text-sm text-muted">Only english cards available</p>
+              <CatalogAutocomplete
+                value={query}
+                onChange={setQuery}
+                options={cardSuggestions}
+                loading={cardSuggestLoading}
+                minChars={2}
+                dropDirection="inline"
+                placeholder="Search card name"
+                disabled={loading}
+                onSelect={(opt) => {
+                  const row = cardRowsById.get(opt.id);
+                  if (row) void addResult(row);
+                }}
+              />
+              {successMessage && (
+                <p className="rounded-lg border border-accent/30 bg-accent/10 px-3 py-2 text-sm text-accent">
+                  {successMessage}
+                </p>
               )}
-              <ul className="divide-y divide-border rounded-lg border border-border">
-                {results.map((r) => (
-                  <li key={r.externalId} className="flex items-center justify-between gap-2 p-3 text-sm">
-                    <label className="flex min-w-0 flex-1 items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={selected.has(r.externalId)}
-                        onChange={() => toggleSelected(r.externalId)}
-                      />
-                      <span className="truncate">
-                        {r.name}
-                        {r.setName && <span className="text-muted"> · {r.setName}</span>}
-                      </span>
-                    </label>
-                    <button type="button" className="btn-ghost py-1 text-xs" onClick={() => addResult(r.externalId)}>
-                      Add
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {!cardSuggestLoading &&
+                cardSearchSettled &&
+                trimmedCardQuery.length >= 2 &&
+                cardSuggestions.length === 0 && (
+                  <p className="text-sm text-muted">No cards found.</p>
+                )}
             </div>
           )}
 
           {tab === "set" && (
             <div className="space-y-3">
+              <p className="text-sm text-muted">Only english sets available</p>
               <CatalogAutocomplete
                 value={setId}
                 onChange={setSetId}
@@ -352,11 +339,13 @@ export function AddCardsModal({
 
           {tab === "manual" && (
             <form className="space-y-3" onSubmit={createManual}>
-              <p className="text-sm text-muted">
-                Set: <span className="text-foreground">{collectionName}</span>
-              </p>
-              <input className="input" placeholder="Card name" required value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} />
-              <input className="input" placeholder="Language" value={manual.language} onChange={(e) => setManual({ ...manual, language: e.target.value })} />
+              <input
+                className="input"
+                placeholder="Card name"
+                required
+                value={manualName}
+                onChange={(e) => setManualName(e.target.value)}
+              />
               <CoverImageField
                 label=""
                 emptyText="No photo"
@@ -369,14 +358,20 @@ export function AddCardsModal({
                 disabled={loading}
               />
               <button type="submit" className="btn-primary w-full" disabled={loading}>
-                Create & add to collection
+                {loading && manualProgress ? manualProgress : "Create & add to collection"}
               </button>
             </form>
           )}
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
+          {error && tab !== "search" && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
+      <AlertDialog
+        open={addErrorDialog != null}
+        title="Could not add card"
+        description={addErrorDialog ?? ""}
+        onClose={() => setAddErrorDialog(null)}
+      />
     </div>
   );
 }

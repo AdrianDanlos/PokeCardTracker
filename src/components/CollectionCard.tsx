@@ -13,18 +13,39 @@ const GRADIENTS = [
 export function CollectionCard({
   collection,
   index,
+  onDelete,
+  deleting,
 }: {
   collection: CollectionProgressSummary;
   index: number;
+  onDelete?: () => void;
+  deleting?: boolean;
 }) {
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const cover = coverImageSrc(collection.cover_image_path);
+  const canDelete = onDelete && !collection.collection_id.startsWith("demo-");
 
   return (
-    <Link
-      to={`/collections/${collection.collection_id}`}
-      className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
-    >
+    <div className="relative">
+      {canDelete && (
+        <button
+          type="button"
+          aria-label={`Delete ${collection.name}`}
+          disabled={deleting}
+          className="absolute right-2 top-2 z-10 flex h-8 w-8 items-center justify-center rounded-md bg-black/50 text-lg text-muted transition hover:bg-black/70 hover:text-red-400 disabled:opacity-50"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          ×
+        </button>
+      )}
+      <Link
+        to={`/collections/${collection.collection_id}`}
+        className="group flex flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
+      >
       <div className={`relative flex h-36 items-center justify-center bg-gradient-to-br ${gradient}`}>
         {cover ? (
           <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -50,5 +71,6 @@ export function CollectionCard({
         </div>
       </div>
     </Link>
+    </div>
   );
 }

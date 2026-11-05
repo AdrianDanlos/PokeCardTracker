@@ -1,4 +1,4 @@
-import { AddCardsModal } from "@/components/AddCardsModal";
+import { AddCardsModal, type CatalogSearchRow } from "@/components/AddCardsModal";
 import { CardGrid } from "@/components/CardGrid";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -14,24 +14,27 @@ type FilterMode = "all" | "owned" | "missing";
 export function CollectionViewClient({
   collection: initialCollection,
   initialEntries,
+  reloadSeq = 0,
   onReload,
+  onCollectionDeleted,
   initialSearch = "",
 }: {
   collection: CollectionProgressSummary;
   initialEntries: CollectionEntryWithCard[];
-  onReload: () => void;
+  /** Bumps after an explicit refetch so we do not overwrite local optimistic UI on background query updates. */
+  reloadSeq?: number;
+  onReload: () => void | Promise<void>;
+  onCollectionDeleted?: () => void;
   initialSearch?: string;
 }) {
   const [collection, setCollection] = useState(initialCollection);
   const [entries, setEntries] = useState(initialEntries);
 
   useEffect(() => {
+    if (reloadSeq === 0) return;
     setCollection(initialCollection);
-  }, [initialCollection]);
-
-  useEffect(() => {
     setEntries(initialEntries);
-  }, [initialEntries]);
+  }, [reloadSeq, initialCollection, initialEntries]);
   const [filter, setFilter] = useState<FilterMode>("all");
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
@@ -79,6 +82,83 @@ export function CollectionViewClient({
       }));
       return next;
     });
+  }
+
+  function applyOptimisticCatalogAdd(row: CatalogSearchRow) {
+    setEntries((prev) => {
+      if (prev.some((e) => e.card.external_id === row.externalId)) return prev;
+      const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
+      const tempKey = `optimistic-${row.externalId}`;
+      const entry: CollectionEntryWithCard = {
+        id: tempKey,
+        collection_id: collection.collection_id,
+        card_id: tempKey,
+        position,
+        owned: false,
+        owned_language: null,
+        card: {
+          id: tempKey,
+          source_id: "tcgdex",
+          external_id: row.externalId,
+          set_id: null,
+          name: row.name,
+          language: "en",
+          image_path: null,
+          image_url: row.imageUrl,
+          attrs: {},
+          set: row.setName
+            ? {
+                id: `${tempKey}-set`,
+                source_id: "tcgdex",
+                external_id: null,
+                name: row.setName,
+                series: null,
+                language: "en",
+                release_date: null,
+                image_path: null,
+              }
+            : null,
+        },
+      };
+      const next = [...prev, entry];
+      setCollection((c) => ({
+        ...c,
+        total_entries: next.length,
+        owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+      }));
+      return next;
+    });
+  }
+
+  function revertOptimisticCatalogAdd(externalId: string) {
+    const tempKey = `optimistic-${externalId}`;
+    applyRemoveEntry(tempKey);
+  }
+
+  function commitOptimisticCatalogAdd(
+    externalId: string,
+    ids: { cardId: string; entryId?: string; imagePath?: string | null },
+  ) {
+    const tempKey = `optimistic-${externalId}`;
+    setEntries((prev) =>
+      prev.map((e) => {
+        if (e.id !== tempKey && e.card.external_id !== externalId) return e;
+        if (e.card.external_id !== externalId) return e;
+        return {
+          ...e,
+          id: ids.entryId ?? e.id,
+          card_id: ids.cardId,
+          card: {
+            ...e.card,
+            id: ids.cardId,
+            // Keep showing TCGdex URL locally to avoid img src swap when cache finishes (~few seconds).
+            image_path: e.card.image_url
+              ? e.card.image_path
+              : (ids.imagePath ?? e.card.image_path),
+          },
+        };
+      }),
+    );
   }
 
   function removeEntry(entry: CollectionEntryWithCard) {
@@ -180,6 +260,9 @@ export function CollectionViewClient({
           collectionName={collection.name}
           onClose={() => setShowAdd(false)}
           onAdded={onReload}
+          onOptimisticCardAdd={applyOptimisticCatalogAdd}
+          onOptimisticCardAddRevert={revertOptimisticCatalogAdd}
+          onCardAddCommitted={commitOptimisticCatalogAdd}
         />
       )}
       {showSettings && (
@@ -189,6 +272,7 @@ export function CollectionViewClient({
           onClose={() => setShowSettings(false)}
           onUpdated={setCollection}
           onEntriesChanged={onReload}
+          onDeleted={onCollectionDeleted}
         />
       )}
     </div>

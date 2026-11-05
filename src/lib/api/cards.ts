@@ -23,10 +23,11 @@ async function syncCatalogCardFromApi(
     result.language,
   );
   const card = await upsertCardFromSearch(supabase, params.source, result, setId);
+  let imagePath: string | null = null;
   if (result.imageUrl) {
-    await cacheRemoteImage(supabase, userId, card.id as string, result.imageUrl);
+    imagePath = await cacheRemoteImage(supabase, userId, card.id as string, result.imageUrl);
   }
-  return card.id as string;
+  return { cardId: card.id as string, imagePath };
 }
 
 export async function suggestCatalogSets(params: { q: string; language?: string }) {
@@ -62,7 +63,11 @@ export async function addCardToCollection(params: {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Unauthorized");
 
-  const cardId = await syncCatalogCardFromApi(supabase, userData.user.id, params);
+  const { cardId, imagePath } = await syncCatalogCardFromApi(
+    supabase,
+    userData.user.id,
+    params,
+  );
 
   const { data: maxPos } = await supabase
     .from("collection_entries")
@@ -81,7 +86,20 @@ export async function addCardToCollection(params: {
     { onConflict: "collection_id,card_id", ignoreDuplicates: true },
   );
   if (error) throw new Error(error.message);
-  return cardId;
+
+  const { data: entryRow, error: entryError } = await supabase
+    .from("collection_entries")
+    .select("id")
+    .eq("collection_id", params.collectionId)
+    .eq("card_id", cardId)
+    .maybeSingle();
+  if (entryError) throw new Error(entryError.message);
+
+  return {
+    cardId,
+    entryId: entryRow?.id as string | undefined,
+    imagePath,
+  };
 }
 
 export async function bulkAddCardsToCollection(params: {
@@ -137,7 +155,7 @@ export async function importSetToCollection(
 
   for (let i = 0; i < imported.cards.length; i++) {
     const externalId = imported.cards[i].externalId;
-    const cardId = await syncCatalogCardFromApi(supabase, userData.user.id, {
+    const { cardId } = await syncCatalogCardFromApi(supabase, userData.user.id, {
       source: params.source,
       externalId,
       language: params.language,
@@ -152,17 +170,21 @@ export async function importSetToCollection(
   }
 }
 
-export async function createManualCard(params: {
-  collectionId: string;
-  name: string;
-  setName: string;
-  language?: string;
-  imageFile?: File | null;
-}) {
+export async function createManualCard(
+  params: {
+    collectionId: string;
+    name: string;
+    setName: string;
+    language?: string;
+    imageFile?: File | null;
+  },
+  onProgress?: (message: string) => void,
+) {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Unauthorized");
 
+  onProgress?.("Creating card…");
   const setId = await upsertSetFromSearch(
     supabase,
     "manual",
@@ -186,6 +208,7 @@ export async function createManualCard(params: {
   if (cardErr) throw new Error(cardErr.message);
 
   if (params.imageFile) {
+    onProgress?.("Uploading photo…");
     const ext = params.imageFile.name.split(".").pop() ?? "jpg";
     const path = `${userData.user.id}/manual/${card.id}.${ext}`;
     const { error: upErr } = await supabase.storage.from("card-images").upload(path, params.imageFile, {
@@ -194,6 +217,7 @@ export async function createManualCard(params: {
     if (!upErr) await supabase.from("cards").update({ image_path: path }).eq("id", card.id);
   }
 
+  onProgress?.("Adding to collection…");
   const { data: maxPos } = await supabase
     .from("collection_entries")
     .select("position")

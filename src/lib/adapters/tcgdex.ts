@@ -61,6 +61,62 @@ async function fetchTcgdex(path: string) {
   return res.json();
 }
 
+function tokenizeSearchQuery(query: string): string[] {
+  return query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+}
+
+/** TCGdex card ids are usually `{setId}-{localId}` e.g. dp3-2. */
+function inferSetIdFromCardId(cardId: string): string | null {
+  const id = cardId.trim();
+  const dash = id.lastIndexOf("-");
+  if (dash <= 0) return null;
+  const suffix = id.slice(dash + 1);
+  if (!/^\d+$/.test(suffix)) return null;
+  return id.slice(0, dash);
+}
+
+function isIdLikeToken(token: string): boolean {
+  return /^[a-z0-9]+-\d+$/i.test(token);
+}
+
+function pickNameTokenForApi(tokens: string[]): string {
+  const nonId = tokens.filter((t) => !isIdLikeToken(t));
+  if (nonId.length === 0) return tokens[0];
+  return nonId.reduce((a, b) => (a.length >= b.length ? a : b));
+}
+
+function buildCardSearchHaystack(
+  c: Record<string, unknown>,
+  setNameById?: Map<string, string>,
+): string {
+  const id = String(c.id ?? "").toLowerCase();
+  const localId = String(c.localId ?? "").toLowerCase();
+  const name = String(c.name ?? "").toLowerCase();
+  const parts = [name, id, localId];
+  const setId = inferSetIdFromCardId(String(c.id ?? ""));
+  if (setId) {
+    parts.push(setId.toLowerCase());
+    const setName = setNameById?.get(setId.toLowerCase());
+    if (setName) parts.push(setName.toLowerCase());
+  }
+  return parts.join(" ");
+}
+
+function matchesAllTokens(haystack: string, tokens: string[]): boolean {
+  if (tokens.length === 0) return false;
+  return tokens.every((t) => haystack.includes(t));
+}
+
+async function getSetNameByIdMap(apiLang: "ja" | "en"): Promise<Map<string, string>> {
+  let list = setsListCache.get(apiLang);
+  if (!list) {
+    const raw = (await fetchTcgdex(`/${apiLang}/sets`)) as { id: string; name: string }[];
+    list = raw.map((s) => ({ id: String(s.id), name: String(s.name) }));
+    setsListCache.set(apiLang, list);
+  }
+  return new Map(list.map((s) => [s.id.toLowerCase(), s.name]));
+}
+
 export function createTcgdexAdapter(defaultLanguage = DEFAULT_CARD_LANGUAGE): CardSourceAdapter {
   const defaultApiLang = tcgdxApiLang(defaultLanguage);
   const defaultAppLang = appLanguage(defaultLanguage);
@@ -71,14 +127,54 @@ export function createTcgdexAdapter(defaultLanguage = DEFAULT_CARD_LANGUAGE): Ca
       const requested = options?.language ?? defaultLanguage;
       const apiLang = tcgdxApiLang(requested);
       const storedLang = appLanguage(requested);
-      const q = query.trim().toLowerCase();
-      if (!q) return [];
+      const tokens = tokenizeSearchQuery(query);
+      if (tokens.length === 0) return [];
 
       const limit = options?.pageSize ?? 30;
       const results: CardSearchResult[] = [];
+      const seen = new Set<string>();
+      const setNameById = await getSetNameByIdMap(apiLang);
+
+      function pushIfMatch(c: Record<string, unknown>) {
+        const externalId = String(c.id ?? c.localId);
+        if (seen.has(externalId)) return;
+        const hay = buildCardSearchHaystack(c, setNameById);
+        if (!matchesAllTokens(hay, tokens)) return;
+        seen.add(externalId);
+        const row = mapBrief(c, storedLang);
+        const setId = inferSetIdFromCardId(externalId);
+        if (setId) row.setName = setNameById.get(setId.toLowerCase()) ?? null;
+        results.push(row);
+      }
+
+      if (tokens.length === 1 && isIdLikeToken(tokens[0])) {
+        try {
+          const card = (await fetchTcgdex(
+            `/${apiLang}/cards/${encodeURIComponent(tokens[0])}`,
+          )) as Record<string, unknown>;
+          pushIfMatch(card);
+          if (results.length >= limit) return results;
+        } catch {
+          /* fall through to name / pagination search */
+        }
+      }
+
+      const nameToken = pickNameTokenForApi(tokens);
+      if (nameToken && !isIdLikeToken(nameToken)) {
+        const apiPageSize = Math.min(Math.max(limit * 4, 40), 100);
+        const cards = (await fetchTcgdex(
+          `/${apiLang}/cards?name=${encodeURIComponent(nameToken)}&pagination:page=1&pagination:itemsPerPage=${apiPageSize}`,
+        )) as Record<string, unknown>[];
+        if (Array.isArray(cards)) {
+          for (const c of cards) {
+            pushIfMatch(c);
+            if (results.length >= limit) return results;
+          }
+        }
+      }
+
       const pageSize = 100;
       let page = 1;
-
       while (results.length < limit && page <= 25) {
         const cards = (await fetchTcgdex(
           `/${apiLang}/cards?pagination:page=${page}&pagination:itemsPerPage=${pageSize}`,
@@ -86,12 +182,8 @@ export function createTcgdexAdapter(defaultLanguage = DEFAULT_CARD_LANGUAGE): Ca
         if (!Array.isArray(cards) || cards.length === 0) break;
 
         for (const c of cards) {
-          const name = String(c.name ?? "").toLowerCase();
-          const id = String(c.id ?? "").toLowerCase();
-          if (name.includes(q) || id.includes(q)) {
-            results.push(mapBrief(c, storedLang));
-            if (results.length >= limit) break;
-          }
+          pushIfMatch(c);
+          if (results.length >= limit) break;
         }
         if (cards.length < pageSize) break;
         page += 1;
@@ -178,24 +270,69 @@ export async function suggestTcgdexCards(
   language: string | undefined,
   query: string,
   limit = 10,
-): Promise<{ externalId: string; name: string }[]> {
-  const q = query.trim();
-  if (q.length < 2) return [];
+): Promise<{ externalId: string; name: string; setName: string | null; imageUrl: string | null }[]> {
+  const tokens = tokenizeSearchQuery(query);
+  if (tokens.join("").length < 2) return [];
   const apiLang = tcgdxApiLang(language);
-  const pageSize = Math.min(limit * 3, 30);
-  const cards = (await fetchTcgdex(
-    `/${apiLang}/cards?name=${encodeURIComponent(q)}&pagination:page=1&pagination:itemsPerPage=${pageSize}`,
-  )) as Record<string, unknown>[];
-  if (!Array.isArray(cards)) return [];
+  const setNameById = await getSetNameByIdMap(apiLang);
 
   const seen = new Set<string>();
-  const out: { externalId: string; name: string }[] = [];
-  for (const c of cards) {
+  const out: { externalId: string; name: string; setName: string | null; imageUrl: string | null }[] =
+    [];
+
+  function pushIfMatch(c: Record<string, unknown>) {
     const externalId = String(c.id ?? c.localId);
-    if (seen.has(externalId)) continue;
+    if (seen.has(externalId)) return;
+    const hay = buildCardSearchHaystack(c, setNameById);
+    if (!matchesAllTokens(hay, tokens)) return;
     seen.add(externalId);
-    out.push({ externalId, name: String(c.name ?? "") });
-    if (out.length >= limit) break;
+    const setId = inferSetIdFromCardId(externalId);
+    const image = c.image as string | undefined;
+    out.push({
+      externalId,
+      name: String(c.name ?? ""),
+      setName: setId ? (setNameById.get(setId.toLowerCase()) ?? null) : null,
+      imageUrl: tcgdxImageUrl(image),
+    });
   }
-  return out;
+
+  if (tokens.length === 1 && isIdLikeToken(tokens[0])) {
+    try {
+      const card = (await fetchTcgdex(
+        `/${apiLang}/cards/${encodeURIComponent(tokens[0])}`,
+      )) as Record<string, unknown>;
+      pushIfMatch(card);
+      return out.slice(0, limit);
+    } catch {
+      return [];
+    }
+  }
+
+  const nameToken = pickNameTokenForApi(tokens);
+  const pageSize = Math.min(Math.max(limit * 5, 30), 100);
+  const cards = (await fetchTcgdex(
+    `/${apiLang}/cards?name=${encodeURIComponent(nameToken)}&pagination:page=1&pagination:itemsPerPage=${pageSize}`,
+  )) as Record<string, unknown>[];
+  if (Array.isArray(cards)) {
+    for (const c of cards) {
+      pushIfMatch(c);
+      if (out.length >= limit) break;
+    }
+  }
+
+  if (out.length === 0) {
+    const idToken = tokens.find(isIdLikeToken);
+    if (idToken) {
+      try {
+        const card = (await fetchTcgdex(
+          `/${apiLang}/cards/${encodeURIComponent(idToken)}`,
+        )) as Record<string, unknown>;
+        pushIfMatch(card);
+      } catch {
+        /* no match */
+      }
+    }
+  }
+
+  return out.slice(0, limit);
 }

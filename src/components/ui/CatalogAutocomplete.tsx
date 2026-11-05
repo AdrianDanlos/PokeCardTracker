@@ -4,7 +4,28 @@ export type CatalogAutocompleteOption = {
   id: string;
   label: string;
   detail?: string;
+  imageUrl?: string | null;
 };
+
+function CardArtAvailableIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden
+    >
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <circle cx="8.5" cy="10.5" r="1.5" />
+      <path d="M21 15l-5-5L5 19" />
+    </svg>
+  );
+}
 
 export function CatalogAutocomplete({
   value,
@@ -92,15 +113,28 @@ export function CatalogAutocomplete({
         <li key={opt.id} role="option" aria-selected={index === activeIndex}>
           <button
             type="button"
-            className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-surface ${
+            className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-surface ${
               index === activeIndex ? "bg-surface" : ""
             }`}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => pick(opt)}
             onMouseEnter={() => setActiveIndex(index)}
           >
-            <span className="truncate">{opt.label}</span>
-            {opt.detail && <span className="truncate text-xs text-muted">{opt.detail}</span>}
+            <div className="min-w-0 flex-1">
+              <span className="block truncate">{opt.label}</span>
+              {opt.detail && (
+                <span className="block truncate text-xs text-muted">{opt.detail}</span>
+              )}
+            </div>
+            {opt.imageUrl ? (
+              <span
+                className="shrink-0 text-accent/80"
+                title="Card art available"
+                aria-label="Card art available"
+              >
+                <CardArtAvailableIcon className="h-5 w-5" />
+              </span>
+            ) : null}
           </button>
         </li>
       ))}

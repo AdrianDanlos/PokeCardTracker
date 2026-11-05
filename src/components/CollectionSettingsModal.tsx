@@ -1,6 +1,8 @@
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { applyCollectionOrderImport } from "@/lib/api/collection-order";
 import { parseCollectionOrderJson } from "@/lib/collection-order-json";
+import { deleteCollectionById } from "@/lib/api/collections";
 import { createClient } from "@/lib/supabase/client";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
 import { useNavigate } from "react-router-dom";
@@ -12,12 +14,14 @@ export function CollectionSettingsModal({
   onClose,
   onUpdated,
   onEntriesChanged,
+  onDeleted,
 }: {
   collection: CollectionProgressSummary;
   entries: CollectionEntryWithCard[];
   onClose: () => void;
   onUpdated: (c: CollectionProgressSummary) => void;
   onEntriesChanged: () => void;
+  onDeleted?: () => void;
 }) {
   const navigate = useNavigate();
   const [name, setName] = useState(collection.name);
@@ -29,6 +33,9 @@ export function CollectionSettingsModal({
   const [orderJson, setOrderJson] = useState("");
   const [orderError, setOrderError] = useState<string | null>(null);
   const [orderImporting, setOrderImporting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -88,10 +95,18 @@ export function CollectionSettingsModal({
   }
 
   async function deleteCollection() {
-    if (!confirm(`Delete “${collection.name}”? This cannot be undone.`)) return;
-    const supabase = createClient();
-    await supabase.from("collections").delete().eq("id", collection.collection_id);
-    navigate("/");
+    setDeleteError(null);
+    setDeleting(true);
+    try {
+      await deleteCollectionById(collection.collection_id);
+      setShowDeleteConfirm(false);
+      onDeleted?.();
+      navigate("/");
+    } catch (e) {
+      setDeleteError(e instanceof Error ? e.message : "Could not delete collection");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function importOrderJson() {
@@ -175,12 +190,14 @@ export function CollectionSettingsModal({
           </button>
         </div>
 
+        {deleteError && <p className="text-sm text-red-400">{deleteError}</p>}
+
         <div className="flex flex-wrap justify-between gap-2">
           <button
             type="button"
             className="btn-ghost text-red-400"
-            disabled={collection.collection_id.startsWith("demo-")}
-            onClick={() => void deleteCollection()}
+            disabled={collection.collection_id.startsWith("demo-") || deleting || showDeleteConfirm}
+            onClick={() => setShowDeleteConfirm(true)}
           >
             Delete collection
           </button>
@@ -194,6 +211,17 @@ export function CollectionSettingsModal({
           </div>
         </div>
       </form>
+
+      <ConfirmDialog
+        open={showDeleteConfirm}
+        title="Delete collection?"
+        description={`“${name.trim() || collection.name}” and all cards in this list will be removed. This can’t be undone.`}
+        loading={deleting}
+        onCancel={() => {
+          if (!deleting) setShowDeleteConfirm(false);
+        }}
+        onConfirm={() => void deleteCollection()}
+      />
     </div>
   );
 }

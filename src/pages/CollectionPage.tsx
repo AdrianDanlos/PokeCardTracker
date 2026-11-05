@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useCallback, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CollectionViewClient } from "@/components/CollectionViewClient";
 import { useAuth } from "@/lib/auth/AuthProvider";
@@ -9,10 +10,14 @@ export function CollectionPage() {
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const [reloadSeq, setReloadSeq] = useState(0);
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ["collection", id, user?.id, q],
     enabled: !!user && !!id,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       const summary = await getCollectionSummary(id!, user!.id);
       if (!summary) throw new Error("Collection not found");
@@ -20,6 +25,11 @@ export function CollectionPage() {
       return { summary, entries };
     },
   });
+
+  const reloadCollection = useCallback(async () => {
+    await refetch();
+    setReloadSeq((n) => n + 1);
+  }, [refetch]);
 
   if (!id) return null;
   if (isLoading) return <p className="text-muted">Loading collection…</p>;
@@ -36,10 +46,15 @@ export function CollectionPage() {
 
   return (
     <CollectionViewClient
+      key={id}
       collection={data.summary}
       initialEntries={data.entries}
+      reloadSeq={reloadSeq}
       initialSearch={q}
-      onReload={() => void refetch()}
+      onReload={() => void reloadCollection()}
+      onCollectionDeleted={() => {
+        void queryClient.invalidateQueries({ queryKey: ["collections", user?.id] });
+      }}
     />
   );
 }

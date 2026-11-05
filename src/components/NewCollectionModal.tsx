@@ -84,9 +84,16 @@ export function NewCollectionModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+      onClick={() => {
+        if (!loading) onClose();
+      }}
+      role="presentation"
+    >
       <form
         onSubmit={submit}
+        onClick={(e) => e.stopPropagation()}
         className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
       >
         <h2 className="text-xl font-semibold">New collection</h2>

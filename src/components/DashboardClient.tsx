@@ -1,14 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { CollectionCard } from "@/components/CollectionCard";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { deleteCollectionById } from "@/lib/api/collections";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
   initialCollections,
   onCollectionCreated,
+  onCollectionDeleted,
 }: {
   initialCollections: CollectionProgressSummary[];
   onCollectionCreated: (col: CollectionProgressSummary) => void;
+  onCollectionDeleted: (collectionId: string) => void;
 }) {
   const [collections, setCollections] = useState(initialCollections);
 
@@ -17,6 +21,24 @@ export function DashboardClient({
   }, [initialCollections]);
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<CollectionProgressSummary | null>(null);
+
+  async function confirmDeleteCollection() {
+    const collection = deleteTarget;
+    if (!collection || collection.collection_id.startsWith("demo-")) return;
+    setDeletingId(collection.collection_id);
+    try {
+      await deleteCollectionById(collection.collection_id);
+      setCollections((prev) => prev.filter((c) => c.collection_id !== collection.collection_id));
+      onCollectionDeleted(collection.collection_id);
+      setDeleteTarget(null);
+    } catch {
+      /* keep list unchanged */
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -52,9 +74,30 @@ export function DashboardClient({
 
       <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-2">
         {filtered.map((c, i) => (
-          <CollectionCard key={c.collection_id} collection={c} index={i} />
+          <CollectionCard
+            key={c.collection_id}
+            collection={c}
+            index={i}
+            onDelete={() => setDeleteTarget(c)}
+            deleting={deletingId === c.collection_id}
+          />
         ))}
       </div>
+
+      <ConfirmDialog
+        open={deleteTarget != null}
+        title="Delete collection?"
+        description={
+          deleteTarget
+            ? `“${deleteTarget.name}” and all cards in this list will be removed. This can’t be undone.`
+            : ""
+        }
+        loading={deleteTarget != null && deletingId === deleteTarget.collection_id}
+        onCancel={() => {
+          if (!deletingId) setDeleteTarget(null);
+        }}
+        onConfirm={() => void confirmDeleteCollection()}
+      />
 
       {filtered.length === 0 && (
         <p className="text-center text-muted">No collections yet. Create one to get started.</p>

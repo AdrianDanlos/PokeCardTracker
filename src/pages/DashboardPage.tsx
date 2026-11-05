@@ -24,6 +24,13 @@ export function DashboardPage() {
     void refetch();
   }
 
+  function onCollectionDeleted(collectionId: string) {
+    queryClient.setQueryData<CollectionProgressSummary[]>(queryKey, (prev) =>
+      prev ? prev.filter((c) => c.collection_id !== collectionId) : prev,
+    );
+    void refetch();
+  }
+
   if (isLoading) return <p className="text-muted">Loading collections…</p>;
   if (error) return <p className="text-red-400">{(error as Error).message}</p>;
 
@@ -31,6 +38,7 @@ export function DashboardPage() {
     <DashboardClient
       initialCollections={data ?? []}
       onCollectionCreated={onCollectionCreated}
+      onCollectionDeleted={onCollectionDeleted}
     />
   );
 }
