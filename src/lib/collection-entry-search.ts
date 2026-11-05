@@ -77,3 +77,25 @@ export function listCollectionSetNamesFromEntries(
     .filter((o) => o.key !== COLLECTION_SET_FILTER_NONE)
     .map((o) => o.label);
 }
+
+/** One line per set: `Set name • count`, most cards first. */
+export function buildCollectionSetCountDescription(
+  entries: CollectionEntryWithCard[],
+): string {
+  const counts = new Map<string, { label: string; count: number }>();
+  for (const entry of entries) {
+    const key = collectionEntrySetFilterKey(entry);
+    const label = collectionEntrySetFilterLabel(entry);
+    const row = counts.get(key);
+    if (row) row.count += 1;
+    else counts.set(key, { label, count: 1 });
+  }
+  return [...counts.values()]
+    .sort(
+      (a, b) =>
+        b.count - a.count ||
+        a.label.localeCompare(b.label, undefined, { sensitivity: "base" }),
+    )
+    .map(({ label, count }) => `${label} • ${count}`)
+    .join("\n");
+}

@@ -1,15 +1,17 @@
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@/lib/collection-limits";
+import { buildCollectionSetCountDescription } from "@/lib/collection-entry-search";
 import { deleteCollectionById } from "@/lib/api/collections";
 import { createClient } from "@/lib/supabase/client";
-import type { CollectionProgressSummary } from "@/lib/types";
+import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export function CollectionSettingsModal({
   collection,
+  entries,
   onClose,
   onUpdated,
   onSaved,
@@ -17,6 +19,7 @@ export function CollectionSettingsModal({
   onDeleted,
 }: {
   collection: CollectionProgressSummary;
+  entries: CollectionEntryWithCard[];
   onClose: () => void;
   onUpdated: (c: CollectionProgressSummary) => void;
   onSaved?: () => void;
@@ -161,13 +164,30 @@ export function CollectionSettingsModal({
           </button>
         </div>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
-        <textarea
-          className="input min-h-[120px]"
-          placeholder={`Description (max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
-          value={description}
-          maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
-          onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
-        />
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm text-muted">Description</span>
+            <button
+              type="button"
+              className="cursor-pointer rounded border border-border px-4 py-1.5 text-sm leading-tight text-foreground transition hover:border-accent/50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={entries.length === 0}
+              onClick={() =>
+                setDescription(
+                  clampCollectionDescription(buildCollectionSetCountDescription(entries)),
+                )
+              }
+            >
+              Auto
+            </button>
+          </div>
+          <textarea
+            className="input min-h-[120px]"
+            placeholder={`Max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters`}
+            value={description}
+            maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
+            onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
+          />
+        </div>
         <CoverImageField
           existingCoverPath={collection.cover_image_path}
           file={pendingCover}

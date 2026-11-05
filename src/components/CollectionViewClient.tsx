@@ -795,6 +795,7 @@ export function CollectionViewClient({
       {showSettings && collection && (
         <CollectionSettingsModal
           collection={collection}
+          entries={orderedEntries}
           onClose={() => setShowSettings(false)}
           onUpdated={setCollection}
           onSaved={() => onCollectionUpdated?.()}
