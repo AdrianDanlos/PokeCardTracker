@@ -4,6 +4,11 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 const POCKETS_PER_PAGE = 9;
 
+/** Same outer box for filled and empty pockets so a short last row cannot shrink the page. */
+const POCKET_FRAME = "flex w-full flex-col gap-1.5 rounded-lg border-2 p-1.5";
+const POCKET_CAPTION =
+  "h-[2lh] shrink-0 text-center text-xs leading-tight line-clamp-2";
+
 export function buildBinderSlots(
   entries: CollectionEntryWithCard[],
   gaps: number[],
@@ -137,11 +142,9 @@ function BinderRings() {
 
 function EmptyPocket() {
   return (
-    <div className="flex flex-col gap-1.5">
+    <div className={`${POCKET_FRAME} border-transparent`} aria-hidden>
       <div className="relative aspect-[3/4] w-full rounded-md border border-dashed border-border/60 bg-black/10" />
-      <span className="text-center text-xs text-transparent select-none">
-        —
-      </span>
+      <span className={`${POCKET_CAPTION} select-none text-transparent`}>—</span>
     </div>
   );
 }
@@ -160,8 +163,10 @@ function BinderPocket({
     <button
       type="button"
       onClick={() => onToggle(entry)}
-      className={`group flex w-full flex-col gap-1.5 rounded-lg p-1.5 text-left transition ${
-        owned ? "card-tile-owned" : "card-tile-missing"
+      className={`group ${POCKET_FRAME} text-left transition ${
+        owned
+          ? "border-border bg-surface-elevated"
+          : "border-dashed border-missing bg-transparent"
       }`}
       aria-label={`${entry.card.name}, slot ${slotNumber}. ${owned ? "Owned" : "Missing"}. Click to toggle.`}
     >
@@ -180,7 +185,7 @@ function BinderPocket({
           #{slotNumber}
         </span>
       </div>
-      <span className="line-clamp-2 min-h-[2lh] text-center text-xs leading-tight text-foreground">
+      <span className={`${POCKET_CAPTION} text-foreground`}>
         {entry.card.name}
       </span>
     </button>
@@ -244,8 +249,8 @@ function BinderPagePanel({
   const pageGaps = canEditGaps ? gapsOnPage(gaps, pageIndex) : [];
 
   return (
-    <div className={`flex min-w-0 flex-1 flex-col gap-3 ${className}`}>
-      <div className="rounded-xl border border-border bg-surface p-3 sm:p-4">
+    <div className={`flex min-w-0 flex-1 flex-col gap-3 self-stretch ${className}`}>
+      <div className="grow shrink-0 rounded-xl border border-border bg-surface p-3 sm:p-4">
         <BinderPageGrid
           pageIndex={pageIndex}
           slots={slots}

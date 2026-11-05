@@ -40,8 +40,7 @@ Production (Vercel) does **not** set this; the app uses `window.location.origin`
 
 ### 4. Database
 
-1. Apply migrations from `supabase/migrations/`.
-2. Run `supabase/seed.sql` for `card_sources` if needed.
+Run `supabase/seed.sql` for `card_sources` if needed.
 
 ## Vercel
 

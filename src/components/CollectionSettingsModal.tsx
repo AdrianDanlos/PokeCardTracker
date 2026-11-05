@@ -162,7 +162,7 @@ export function CollectionSettingsModal({
         </div>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         <textarea
-          className="input min-h-[80px]"
+          className="input min-h-[102px]"
           placeholder={`Description (max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
           value={description}
           maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
@@ -193,14 +193,9 @@ export function CollectionSettingsModal({
           >
             Delete collection
           </button>
-          <div className="flex gap-2">
-            <button type="button" className="btn-ghost" onClick={onClose}>
-              Cancel
-            </button>
-            <button type="submit" className="btn-primary" disabled={coverUploading}>
-              Save
-            </button>
-          </div>
+          <button type="submit" className="btn-primary" disabled={coverUploading}>
+            Save
+          </button>
         </div>
       </form>
 

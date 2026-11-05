@@ -114,7 +114,6 @@ export function ReorderCollectionModal({
             <span className="font-medium text-foreground">Paste the new JSON</span>
             <textarea
               className="input min-h-[160px] w-full font-mono text-xs"
-              placeholder={exportJson.slice(0, 120) + "…"}
               value={pasteText}
               onChange={(e) => {
                 setPasteText(e.target.value);
