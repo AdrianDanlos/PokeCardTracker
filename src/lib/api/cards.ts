@@ -449,9 +449,8 @@ export async function createManualCard(
   if (entryErr) throw new Error(entryErr.message);
 
   if (params.imageFile) {
-    void uploadCardDisplayImage(card.id as string, params.imageFile).catch(() => {
-      /* card row exists; photo may appear after retry or re-edit */
-    });
+    onProgress?.("Uploading photo…");
+    await uploadCardDisplayImage(card.id as string, params.imageFile);
   }
 
   return entry.id as string;
