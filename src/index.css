@@ -46,6 +46,14 @@ body {
   box-sizing: border-box;
 }
 
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
 .progress-track {
   background: var(--border);
   border-radius: 999px;
@@ -93,11 +101,11 @@ body {
 }
 
 .btn-primary {
-  @apply rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black transition hover:bg-accent-dim;
+  @apply cursor-pointer rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-black transition hover:bg-accent-dim disabled:cursor-not-allowed;
 }
 
 .btn-ghost {
-  @apply rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-accent/50;
+  @apply cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-accent/50 disabled:cursor-not-allowed;
 }
 
 .input {

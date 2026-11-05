@@ -59,7 +59,7 @@ function readStoredViewMode(): CollectionViewMode {
 }
 
 function segmentButtonClass(active: boolean) {
-  return `rounded-full px-3 py-1 text-sm capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
+  return `cursor-pointer rounded-full px-3 py-1 text-sm capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
     active
       ? "bg-accent/15 text-foreground ring-1 ring-accent/40"
       : "text-muted hover:text-foreground"

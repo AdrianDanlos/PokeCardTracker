@@ -19,7 +19,6 @@ export function EditCardModal({
   const [cardName, setCardName] = useState(entry.card.name);
   const [setLabel, setSetLabel] = useState(entry.card.set?.name?.trim() ?? "");
   const [imageFile, setImageFile] = useState<File | null>(null);
-  const [imageCleared, setImageCleared] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const imageBeforeEditRef = useRef({
@@ -32,22 +31,20 @@ export function EditCardModal({
     [entry.card.image_path, entry.card.image_url],
   );
 
-  const imagePreviewUrl =
-    imageCleared && !imageFile ? null : (initialPreviewUrl ?? null);
+  const imagePreviewUrl = initialPreviewUrl ?? null;
 
   async function save(e?: { preventDefault?: () => void }) {
     e?.preventDefault?.();
     setError(null);
     setSaving(true);
     const pendingFile = imageFile;
-    const clearImage = imageCleared && !pendingFile;
     try {
       const card = await updateCardDisplay({
         cardId: entry.card_id,
         language: entry.card.language,
         name: cardName,
         setName: setLabel,
-        clearImage,
+        clearImage: false,
       });
 
       const saved: CollectionEntryWithCard["card"] = {
@@ -129,15 +126,8 @@ export function EditCardModal({
             onNameChange={setCardName}
             onSetNameChange={setSetLabel}
             imageFile={imageFile}
-            onImageFileChange={(file) => {
-              setImageFile(file);
-              if (file) setImageCleared(false);
-            }}
+            onImageFileChange={setImageFile}
             imagePreviewUrl={imagePreviewUrl}
-            onImageClear={() => {
-              setImageFile(null);
-              setImageCleared(true);
-            }}
             disabled={saving}
             nameAutoFocus
           />

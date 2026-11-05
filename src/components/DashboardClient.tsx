@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { CollectionCard } from "@/components/CollectionCard";
+import { CollectionGrid } from "@/components/CollectionGrid";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { deleteCollectionById } from "@/lib/api/collections";
+import {
+  deleteCollectionById,
+  reorderCollections,
+} from "@/lib/api/collections";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
@@ -11,12 +14,14 @@ export function DashboardClient({
   loadError = null,
   onCollectionCreated,
   onCollectionDeleted,
+  onCollectionsReordered,
 }: {
   initialCollections: CollectionProgressSummary[];
   collectionsPending?: boolean;
   loadError?: string | null;
   onCollectionCreated: (col: CollectionProgressSummary) => void;
   onCollectionDeleted: (collectionId: string) => void;
+  onCollectionsReordered?: (collections: CollectionProgressSummary[]) => void;
 }) {
   const [collections, setCollections] = useState(initialCollections);
 
@@ -54,6 +59,33 @@ export function DashboardClient({
     );
   }, [collections, search]);
 
+  const canReorderCollections = !search.trim() && collections.length > 1;
+
+  function reorderCollectionsByIds(orderedIds: string[]) {
+    const prev = collections;
+    const byId = new Map(collections.map((c) => [c.collection_id, c]));
+    const reordered = orderedIds.map((id, sort_order) => ({
+      ...byId.get(id)!,
+      sort_order,
+    }));
+    setCollections(reordered);
+    onCollectionsReordered?.(reordered);
+
+    const updates = reordered
+      .map((c, sort_order) => ({
+        id: c.collection_id,
+        sort_order,
+        prev: prev.find((p) => p.collection_id === c.collection_id)?.sort_order,
+      }))
+      .filter((u) => u.prev !== u.sort_order && !u.id.startsWith("demo-"))
+      .map(({ id, sort_order }) => ({ id, sort_order }));
+
+    void reorderCollections(updates).catch(() => {
+      setCollections(prev);
+      onCollectionsReordered?.(prev);
+    });
+  }
+
   return (
     <div className="space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -77,17 +109,13 @@ export function DashboardClient({
         <p className="py-10 text-center text-red-400">{loadError}</p>
       ) : (
         <>
-          <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
-            {filtered.map((c, i) => (
-              <CollectionCard
-                key={c.collection_id}
-                collection={c}
-                index={i}
-                onDelete={() => setDeleteTarget(c)}
-                deleting={deletingId === c.collection_id}
-              />
-            ))}
-          </div>
+          <CollectionGrid
+            collections={filtered}
+            sortable={canReorderCollections}
+            onReorder={canReorderCollections ? reorderCollectionsByIds : undefined}
+            onDelete={setDeleteTarget}
+            deletingId={deletingId}
+          />
 
           {!collectionsPending && filtered.length === 0 && (
             <p className="text-center text-muted">

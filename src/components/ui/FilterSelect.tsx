@@ -108,7 +108,7 @@ export function FilterSelect({
       <button
         type="button"
         disabled={disabled}
-        className={`inline-flex max-w-[14rem] min-w-[8rem] items-center justify-between gap-2 rounded-full border border-border bg-surface px-3 py-1 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
+        className={`inline-flex max-w-[14rem] min-w-[8rem] cursor-pointer items-center justify-between gap-2 rounded-full border border-border bg-surface px-3 py-1 text-sm transition disabled:cursor-not-allowed disabled:opacity-50 ${
           value
             ? "text-foreground ring-1 ring-accent/40"
             : "text-muted hover:text-foreground"
@@ -141,7 +141,7 @@ export function FilterSelect({
                   type="button"
                   role="option"
                   aria-selected={selected}
-                  className={optionButtonClass(selected, index === activeIndex)}
+                  className={`cursor-pointer ${optionButtonClass(selected, index === activeIndex)}`}
                   onMouseDown={(e) => e.preventDefault()}
                   onClick={() => pick(item.value)}
                   onMouseEnter={() => setActiveIndex(index)}

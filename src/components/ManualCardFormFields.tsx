@@ -8,7 +8,6 @@ export function ManualCardFormFields({
   imageFile,
   onImageFileChange,
   imagePreviewUrl,
-  onImageClear,
   showPhoto = true,
   disabled = false,
   nameAutoFocus = false,
@@ -20,7 +19,6 @@ export function ManualCardFormFields({
   imageFile?: File | null;
   onImageFileChange?: (file: File | null) => void;
   imagePreviewUrl?: string | null;
-  onImageClear?: () => void;
   showPhoto?: boolean;
   disabled?: boolean;
   nameAutoFocus?: boolean;
@@ -55,7 +53,6 @@ export function ManualCardFormFields({
           file={imageFile ?? null}
           fallbackPreviewUrl={imagePreviewUrl}
           onFileChange={onImageFileChange}
-          onClearPreview={onImageClear}
           disabled={disabled}
         />
       )}

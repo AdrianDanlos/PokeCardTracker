@@ -35,6 +35,10 @@ export function DashboardPage() {
     void refetch();
   }
 
+  function onCollectionsReordered(cols: CollectionProgressSummary[]) {
+    queryClient.setQueryData<CollectionProgressSummary[]>(queryKey, cols);
+  }
+
   return (
     <DashboardClient
       initialCollections={data ?? []}
@@ -42,6 +46,7 @@ export function DashboardPage() {
       loadError={error ? (error as Error).message : null}
       onCollectionCreated={onCollectionCreated}
       onCollectionDeleted={onCollectionDeleted}
+      onCollectionsReordered={onCollectionsReordered}
     />
   );
 }

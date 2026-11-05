@@ -7,6 +7,7 @@ import {
   collectionOwnedPercentFill,
 } from "@/lib/collection-progress";
 import type { CollectionProgressSummary } from "@/lib/types";
+import type { CSSProperties, SyntheticEvent } from "react";
 
 const GRADIENTS = [
   "from-rose-900/80 via-rose-950 to-surface",
@@ -15,16 +16,40 @@ const GRADIENTS = [
   "from-violet-900/70 via-violet-950 to-surface",
 ];
 
+function CollectionDragGrip() {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 20 20"
+      fill="currentColor"
+      className="h-4 w-4"
+      aria-hidden
+    >
+      <path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM7 16a1 1 0 11-2 0 1 1 0 012 0zM13 4a1 1 0 11-2 0 1 1 0 012 0zM13 10a1 1 0 11-2 0 1 1 0 012 0zM13 16a1 1 0 11-2 0 1 1 0 012 0z" />
+    </svg>
+  );
+}
+
 export function CollectionCard({
   collection,
   index,
   onDelete,
   deleting,
+  sortableRef,
+  sortableStyle,
+  dragHandle,
 }: {
   collection: CollectionProgressSummary;
   index: number;
   onDelete?: () => void;
   deleting?: boolean;
+  sortableRef?: (node: HTMLElement | null) => void;
+  sortableStyle?: CSSProperties;
+  dragHandle?: {
+    setActivatorNodeRef: (node: HTMLElement | null) => void;
+    attributes: object;
+    listeners: object | undefined;
+  };
 }) {
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const cover = coverImageSrc(collection.cover_image_path);
@@ -34,8 +59,27 @@ export function CollectionCard({
   const pctLabel = collectionOwnedPercentDisplay(owned, total);
   const pctFill = collectionOwnedPercentFill(owned, total);
 
+  function stopNav(e: SyntheticEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+
   return (
-    <div className="relative h-full">
+    <div ref={sortableRef} style={sortableStyle} className="relative h-full">
+      {dragHandle ? (
+        <button
+          type="button"
+          ref={dragHandle.setActivatorNodeRef}
+          {...dragHandle.attributes}
+          {...dragHandle.listeners}
+          aria-label={`Drag ${collection.name} to reorder`}
+          className="absolute left-2 top-2 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-md bg-black/50 text-muted transition hover:bg-black/70 hover:text-foreground active:cursor-grabbing"
+          onClick={stopNav}
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          <CollectionDragGrip />
+        </button>
+      ) : null}
       {canDelete && (
         <button
           type="button"
@@ -56,12 +100,18 @@ export function CollectionCard({
         state={{ collection }}
         className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
       >
-      <div className={`relative flex h-36 shrink-0 items-center justify-center bg-gradient-to-br ${gradient}`}>
+      <div className="shrink-0 px-3.5 pt-3.5">
+        <div
+          className={`relative aspect-[16/10] w-full overflow-hidden rounded-lg bg-gradient-to-br ${gradient}`}
+        >
         {cover ? (
-          <img src={cover} alt="" className="absolute inset-0 h-full w-full object-cover" />
+          <img src={cover} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="text-sm text-muted">Cover image</span>
+          <span className="absolute inset-0 flex items-center justify-center text-sm text-muted">
+            Cover image
+          </span>
         )}
+        </div>
       </div>
       <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
         <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-foreground group-hover:text-accent">

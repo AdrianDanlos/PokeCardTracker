@@ -12,7 +12,6 @@ export function CoverImageField({
   fallbackPreviewUrl,
   file,
   onFileChange,
-  onClearPreview,
   disabled = false,
 }: {
   label?: string;
@@ -26,8 +25,6 @@ export function CoverImageField({
   fallbackPreviewUrl?: string | null;
   file?: File | null;
   onFileChange: (file: File | null) => void;
-  /** Called when user removes the current preview (new file or fallback). */
-  onClearPreview?: () => void;
   disabled?: boolean;
 }) {
   const inputId = useId();
@@ -69,26 +66,13 @@ export function CoverImageField({
         )}
       </label>
 
-      {(previewUrl && !disabled) || fileLabel ? (
-        <div className={`flex flex-col gap-2 ${actionsWrapClassName}`}>
-          {previewUrl && !disabled && (
-            <button
-              type="button"
-              className="btn-ghost w-full"
-              onClick={() => {
-                onFileChange(null);
-                onClearPreview?.();
-              }}
-            >
-              Remove
-            </button>
-          )}
-          {fileLabel && (
-            <p className="truncate text-center text-xs text-muted" title={fileLabel}>
-              {fileLabel}
-            </p>
-          )}
-        </div>
+      {fileLabel ? (
+        <p
+          className={`truncate text-center text-xs text-muted ${actionsWrapClassName}`}
+          title={fileLabel}
+        >
+          {fileLabel}
+        </p>
       ) : null}
 
       <input
