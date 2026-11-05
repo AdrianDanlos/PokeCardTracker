@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
 import {
   addCardToCollection,
   createManualCard,
@@ -15,6 +16,7 @@ import {
 } from "@/components/ui/CatalogAutocomplete";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { fetchJapaneseSetCatalog, suggestJapaneseSets } from "@/lib/api/tcgplayer-set";
 import { DEFAULT_CARD_LANGUAGE } from "@/lib/types";
 
 export type CatalogSearchRow = {
@@ -71,6 +73,20 @@ export function AddCardsModal({
 
   const jsonJapaneseSetNameTrimmed = jsonJapaneseSetName.trim();
   const canCopyJsonPrompt = jsonJapaneseSetNameTrimmed.length > 0 && !loading;
+
+  const { data: jpSetCatalog = [], isLoading: jpSetCatalogLoading } = useQuery({
+    queryKey: ["tcgos-jp-sets-catalog"],
+    queryFn: fetchJapaneseSetCatalog,
+    staleTime: 86_400_000,
+    enabled: tab === "json",
+  });
+
+  const jpSetSuggestions = useMemo((): CatalogAutocompleteOption[] => {
+    return suggestJapaneseSets(jpSetCatalog, jsonJapaneseSetName, 30).map((entry) => ({
+      id: entry.slug,
+      label: entry.name,
+    }));
+  }, [jpSetCatalog, jsonJapaneseSetName]);
 
   const debouncedQuery = useDebouncedValue(query, 280);
   const trimmedCardQuery = query.trim();
@@ -281,22 +297,33 @@ export function AddCardsModal({
           {tab === "json" && (
             <div className="space-y-3">
               <div className="mb-5 space-y-1.5 text-sm">
-                <label className="block text-muted" htmlFor="import-set-japanese-name">
-                  Japanese set
-                </label>
-                <input
-                  id="import-set-japanese-name"
-                  className="input w-full text-foreground"
-                  placeholder="e.g. Leader's Stadium"
+                <span className="block text-muted">Japanese set</span>
+                <CatalogAutocomplete
                   value={jsonJapaneseSetName}
-                  onChange={(e) => {
-                    setJsonJapaneseSetName(e.target.value);
+                  onChange={(value) => {
+                    setJsonJapaneseSetName(value);
                     setJsonPromptCopied(false);
                   }}
+                  options={jpSetSuggestions}
+                  loading={jpSetCatalogLoading}
+                  minChars={0}
+                  dropDirection="inline"
+                  placeholder="e.g. Leader's Stadium"
                   disabled={loading}
+                  onSelect={(option) => {
+                    setJsonJapaneseSetName(option.label);
+                    setJsonPromptCopied(false);
+                  }}
                 />
+                {!jpSetCatalogLoading &&
+                jsonJapaneseSetNameTrimmed.length > 0 &&
+                jpSetSuggestions.length === 0 ? (
+                  <p className="text-xs text-muted">
+                    No matching Japanese sets in the catalog. You can still use this name.
+                  </p>
+                ) : null}
                 <p className="text-xs leading-snug text-muted">
-                  Take a look at the decks here:{" "}
+                  Find all sets here:{" "}
                   <a
                     href="https://www.thetcgos.com/g/pokemon/japanese"
                     target="_blank"

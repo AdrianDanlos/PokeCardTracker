@@ -26,7 +26,7 @@ export function CardImage({
       <img
         src={src}
         alt={alt}
-        className="h-full w-full select-none object-contain"
+        className="h-full w-full select-none object-contain brightness-115"
         loading="lazy"
         draggable={false}
         onDragStart={(e) => e.preventDefault()}

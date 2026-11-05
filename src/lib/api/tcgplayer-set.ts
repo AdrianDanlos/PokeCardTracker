@@ -13,6 +13,49 @@ export type TcgplayerSetPayload = {
   cards: TcgplayerSetCard[];
 };
 
+export type JapaneseSetCatalogEntry = {
+  slug: string;
+  name: string;
+};
+
+/** English display names for Japanese sets (from The TCG OS). */
+export async function fetchJapaneseSetCatalog(): Promise<JapaneseSetCatalogEntry[]> {
+  const supabase = createClient();
+  const { data, error } = await supabase.functions.invoke("tcgos-jp-sets", { body: {} });
+  const payload = data as { sets?: JapaneseSetCatalogEntry[]; error?: string } | null;
+  if (payload?.error) throw new Error(payload.error);
+  if (error) throw new Error(error.message);
+  if (!payload?.sets?.length) throw new Error("Could not load Japanese set list");
+  return payload.sets;
+}
+
+export function suggestJapaneseSets(
+  catalog: JapaneseSetCatalogEntry[],
+  q: string,
+  limit = 25,
+): JapaneseSetCatalogEntry[] {
+  const trimmed = q.trim().toLowerCase();
+  if (!trimmed) return catalog.slice(0, limit);
+
+  const tokens = trimmed.split(/\s+/).filter(Boolean);
+  return catalog
+    .map((entry) => {
+      const hay = entry.name.toLowerCase();
+      let score = 0;
+      for (const token of tokens) {
+        const idx = hay.indexOf(token);
+        if (idx === -1) return null;
+        score += token.length * 10 - idx;
+      }
+      if (hay.startsWith(trimmed)) score += 50;
+      return { entry, score };
+    })
+    .filter((row): row is { entry: JapaneseSetCatalogEntry; score: number } => row != null)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((row) => row.entry);
+}
+
 function externalId(productId: string) {
   return `tcgplayer-${productId}`;
 }
