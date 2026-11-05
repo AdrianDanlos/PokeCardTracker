@@ -6,6 +6,7 @@ import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@
 import { deleteCollectionById } from "@/lib/api/collections";
 import { createClient } from "@/lib/supabase/client";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
+import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
@@ -27,7 +28,6 @@ export function CollectionSettingsModal({
   const navigate = useNavigate();
   const [name, setName] = useState(collection.name);
   const [description, setDescription] = useState(collection.description ?? "");
-  const [goal, setGoal] = useState(collection.goal_count?.toString() ?? "");
   const [saving, setSaving] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [pendingCover, setPendingCover] = useState<File | null>(null);
@@ -38,20 +38,20 @@ export function CollectionSettingsModal({
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
+  async function saveAndClose(e?: { preventDefault?: () => void }) {
+    e?.preventDefault?.();
     if (collection.collection_id.startsWith("demo-")) {
       onClose();
       return;
     }
+    if (saving || coverUploading || orderImporting) return;
     setSaving(true);
     const supabase = createClient();
     const { data, error } = await supabase
       .from("collections")
       .update({
         name: name.trim(),
-        description: description.trim() || null,
-        goal_count: goal ? Number(goal) : null,
+        description: clampCollectionDescription(description.trim()) || null,
       })
       .eq("id", collection.collection_id)
       .select("*")
@@ -62,7 +62,6 @@ export function CollectionSettingsModal({
         ...collection,
         name: data.name,
         description: data.description,
-        goal_count: data.goal_count,
       });
       onClose();
     }
@@ -132,22 +131,36 @@ export function CollectionSettingsModal({
   }
 
   function requestClose() {
-    if (saving || coverUploading || orderImporting) return;
-    onClose();
+    void saveAndClose();
   }
+
+  const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } =
+    useDismissableBackdrop(requestClose);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={requestClose}
       role="presentation"
+      onMouseDown={onBackdropMouseDown}
+      onClick={onBackdropClick}
     >
       <form
-        onSubmit={save}
-        onClick={(e) => e.stopPropagation()}
+        onSubmit={(e) => void saveAndClose(e)}
+        onMouseDown={onPanelMouseDown}
         className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
       >
-        <h2 className="text-xl font-semibold">Collection settings</h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold">Collection settings</h2>
+          <button
+            type="button"
+            className="btn-ghost py-1 text-lg leading-none"
+            aria-label="Save and close"
+            disabled={saving || coverUploading || orderImporting}
+            onClick={() => void saveAndClose()}
+          >
+            ×
+          </button>
+        </div>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         <textarea
           className="input min-h-[80px]"
@@ -156,7 +169,6 @@ export function CollectionSettingsModal({
           maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
           onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
         />
-        <input className="input" type="number" placeholder="Goal count" value={goal} onChange={(e) => setGoal(e.target.value)} />
         <CoverImageField
           existingCoverPath={collection.cover_image_path}
           file={pendingCover}

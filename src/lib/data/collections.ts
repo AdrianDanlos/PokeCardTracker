@@ -1,3 +1,4 @@
+import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import { createClient } from "@/lib/supabase/client";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
 
@@ -16,18 +17,6 @@ export async function listCollections(userId: string | undefined) {
 export async function getCollectionEntries(collectionId: string, userId: string, search?: string) {
   const supabase = createClient();
 
-  let cardIdsFilter: string[] | null = null;
-  const q = search?.trim();
-  if (q) {
-    const { data: cards } = await supabase
-      .from("cards")
-      .select("id")
-      .ilike("name", `%${q}%`)
-      .limit(500);
-    cardIdsFilter = (cards ?? []).map((c) => c.id);
-    if (cardIdsFilter.length === 0) return [] as CollectionEntryWithCard[];
-  }
-
   let query = supabase
     .from("collection_entries")
     .select(
@@ -42,8 +31,6 @@ export async function getCollectionEntries(collectionId: string, userId: string,
     )
     .eq("collection_id", collectionId)
     .order("position", { ascending: true });
-
-  if (cardIdsFilter) query = query.in("card_id", cardIdsFilter);
 
   const { data: entries, error } = await query;
   if (error) throw error;
@@ -61,7 +48,7 @@ export async function getCollectionEntries(collectionId: string, userId: string,
     ownedByCard.set(row.card_id, { language: row.language as string | null });
   }
 
-  return entries.map((entry) => {
+  const mapped = entries.map((entry) => {
     const ownedRow = ownedByCard.get(entry.card_id);
     const row = entry as unknown as Omit<CollectionEntryWithCard, "owned" | "owned_language"> & {
       card: CollectionEntryWithCard["card"];
@@ -72,6 +59,10 @@ export async function getCollectionEntries(collectionId: string, userId: string,
       owned_language: ownedRow?.language ?? null,
     } satisfies CollectionEntryWithCard;
   });
+
+  const q = search?.trim();
+  if (!q) return mapped;
+  return mapped.filter((entry) => matchesCollectionEntrySearch(entry, q));
 }
 
 export async function getCollectionSummary(collectionId: string, userId: string) {

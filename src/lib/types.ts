@@ -31,7 +31,6 @@ export interface CollectionRecord {
   name: string;
   description: string | null;
   cover_image_path: string | null;
-  goal_count: number | null;
   sort_order: number;
 }
 
@@ -41,7 +40,6 @@ export interface CollectionProgressSummary {
   name: string;
   description: string | null;
   cover_image_path: string | null;
-  goal_count: number | null;
   sort_order: number;
   total_entries: number;
   owned_entries: number;

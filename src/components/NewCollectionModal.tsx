@@ -4,6 +4,7 @@ import { CoverImageField } from "@/components/ui/CoverImageField";
 import { createClient } from "@/lib/supabase/client";
 import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@/lib/collection-limits";
 import type { CollectionProgressSummary } from "@/lib/types";
+import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useState } from "react";
 
 export function NewCollectionModal({
@@ -15,7 +16,6 @@ export function NewCollectionModal({
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [goal, setGoal] = useState("");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,10 +36,9 @@ export function NewCollectionModal({
       .insert({
         user_id: userData.user.id,
         name: name.trim(),
-        description: description.trim() || null,
-        goal_count: goal ? Number(goal) : null,
+        description: clampCollectionDescription(description.trim()) || null,
       })
-      .select("id, user_id, name, description, cover_image_path, goal_count, sort_order")
+      .select("id, user_id, name, description, cover_image_path, sort_order")
       .single();
     if (insertError || !data) {
       setLoading(false);
@@ -84,17 +83,22 @@ export function NewCollectionModal({
     } as CollectionProgressSummary);
   }
 
+  const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } = useDismissableBackdrop(
+    () => {
+      if (!loading) onClose();
+    },
+  );
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={() => {
-        if (!loading) onClose();
-      }}
       role="presentation"
+      onMouseDown={onBackdropMouseDown}
+      onClick={onBackdropClick}
     >
       <form
         onSubmit={submit}
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={onPanelMouseDown}
         className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
       >
         <h2 className="text-xl font-semibold">New collection</h2>
@@ -107,17 +111,10 @@ export function NewCollectionModal({
         />
         <textarea
           className="input min-h-[80px]"
-          placeholder="Description (optional, max 60 characters)"
+          placeholder={`Description (optional, max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
           value={description}
           maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
           onChange={(e) => setDescription(clampCollectionDescription(e.target.value))}
-        />
-        <input
-          className="input"
-          type="number"
-          placeholder="Goal count"
-          value={goal}
-          onChange={(e) => setGoal(e.target.value)}
         />
         <CoverImageField file={coverFile} onFileChange={setCoverFile} />
         {error && <p className="text-sm text-red-400">{error}</p>}

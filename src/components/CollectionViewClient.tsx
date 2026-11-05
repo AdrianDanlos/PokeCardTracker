@@ -6,6 +6,7 @@ import { removeEntryFromCollection } from "@/lib/api/collection-entries";
 import { setCardOwned } from "@/lib/api/owned";
 import { downloadTextFile, exportCollectionOrderJson } from "@/lib/collection-order-json";
 import { clampCollectionDescription } from "@/lib/collection-limits";
+import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
 import { Link } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
@@ -44,9 +45,8 @@ export function CollectionViewClient({
     let list = entries;
     if (filter === "owned") list = list.filter((e) => e.owned);
     if (filter === "missing") list = list.filter((e) => !e.owned);
-    const q = search.trim().toLowerCase();
-    if (q) {
-      list = list.filter((e) => e.card.name.toLowerCase().includes(q));
+    if (search.trim()) {
+      list = list.filter((e) => matchesCollectionEntrySearch(e, search));
     }
     return list;
   }, [entries, filter, search]);
@@ -200,11 +200,10 @@ export function CollectionViewClient({
           <h1 className="text-3xl font-bold">{collection.name}</h1>
           <p className="text-sm text-muted">
             {owned} / {total} owned · {pct}%
-            {collection.goal_count ? ` · goal ${collection.goal_count}` : ""}
           </p>
         </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-6">
-          <p className="min-w-0 flex-1 text-muted">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+          <p className="min-w-0 flex-1 whitespace-pre-line text-muted">
             {collection.description
               ? clampCollectionDescription(collection.description.trim())
               : "\u00A0"}
@@ -252,7 +251,7 @@ export function CollectionViewClient({
       <div className="max-w-md">
         <input
           className="input w-full"
-          placeholder="Search name"
+          placeholder="Search name or set"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && onReload()}

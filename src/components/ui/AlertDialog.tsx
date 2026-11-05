@@ -1,3 +1,5 @@
+import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
+
 export function AlertDialog({
   open,
   title,
@@ -9,13 +11,17 @@ export function AlertDialog({
   description: string;
   onClose: () => void;
 }) {
+  const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } =
+    useDismissableBackdrop(onClose);
+
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 backdrop-blur-[2px]"
-      onClick={onClose}
       role="presentation"
+      onMouseDown={onBackdropMouseDown}
+      onClick={onBackdropClick}
     >
       <div
         role="alertdialog"
@@ -23,7 +29,7 @@ export function AlertDialog({
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-desc"
         className="w-full max-w-md rounded-xl border border-border bg-surface-elevated p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={onPanelMouseDown}
       >
         <h3 id="alert-dialog-title" className="text-lg font-semibold text-foreground">
           {title}

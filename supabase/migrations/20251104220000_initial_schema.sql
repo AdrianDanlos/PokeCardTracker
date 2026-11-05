@@ -1,4 +1,4 @@
-﻿-- Extensions
+-- Extensions
 create extension if not exists pg_trgm;
 create extension if not exists unaccent;
 
@@ -30,33 +30,19 @@ create table public.sets (
 create index sets_source_idx on public.sets (source_id);
 create index sets_language_idx on public.sets (language);
 
--- Cards (one row per exact printing / variant)
-create type public.card_category as enum (
-  'official',
-  'promo',
-  'variant',
-  'misprint',
-  'custom'
-);
-
+-- Cards (catalog + manual entries)
 create table public.cards (
   id uuid primary key default gen_random_uuid(),
   source_id text not null references public.card_sources (id) on delete restrict,
   external_id text,
   set_id uuid references public.sets (id) on delete set null,
-  number text,
   name text not null,
-  rarity text,
   language text not null default 'en',
-  edition text,
-  variant text,
-  category public.card_category not null default 'official',
   image_path text,
   image_url text,
   attrs jsonb not null default '{}'::jsonb,
   search_vector tsvector generated always as (
-    setweight(to_tsvector('simple', coalesce(name, '')), 'A') ||
-    setweight(to_tsvector('simple', coalesce(number, '')), 'B')
+    setweight(to_tsvector('simple', coalesce(name, '')), 'A')
   ) stored,
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
@@ -65,11 +51,8 @@ create table public.cards (
 
 create index cards_set_idx on public.cards (set_id);
 create index cards_name_trgm_idx on public.cards using gin (name gin_trgm_ops);
-create index cards_number_trgm_idx on public.cards using gin (number gin_trgm_ops);
 create index cards_search_idx on public.cards using gin (search_vector);
-create index cards_rarity_idx on public.cards (rarity);
 create index cards_language_idx on public.cards (language);
-create index cards_category_idx on public.cards (category);
 
 -- Collections (user-defined lists)
 create table public.collections (
@@ -78,7 +61,6 @@ create table public.collections (
   name text not null,
   description text,
   cover_image_path text,
-  goal_count integer,
   sort_order integer not null default 0,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -86,14 +68,12 @@ create table public.collections (
 
 create index collections_user_idx on public.collections (user_id);
 
--- Entries in a collection (binder order)
+-- Entries in a collection (display order)
 create table public.collection_entries (
   id uuid primary key default gen_random_uuid(),
   collection_id uuid not null references public.collections (id) on delete cascade,
   card_id uuid not null references public.cards (id) on delete cascade,
   position integer not null default 0,
-  slot_label text,
-  notes text,
   created_at timestamptz not null default now(),
   unique (collection_id, card_id)
 );
@@ -102,20 +82,12 @@ create index collection_entries_collection_idx on public.collection_entries (col
 create index collection_entries_card_idx on public.collection_entries (card_id);
 create index collection_entries_position_idx on public.collection_entries (collection_id, position);
 
--- Physical inventory (global per user per card)
-create type public.card_condition as enum ('NM', 'LP', 'MP', 'HP', 'DMG');
-
+-- Owned flag per user per card (global across collections)
 create table public.owned_copies (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users (id) on delete cascade,
   card_id uuid not null references public.cards (id) on delete cascade,
-  condition public.card_condition not null default 'NM',
   language text,
-  edition text,
-  variant text,
-  quantity integer not null default 1 check (quantity >= 0),
-  purchase_price numeric(10, 2),
-  notes text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, card_id)

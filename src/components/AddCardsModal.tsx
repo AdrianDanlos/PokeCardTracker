@@ -12,6 +12,7 @@ import {
   CatalogAutocomplete,
   type CatalogAutocompleteOption,
 } from "@/components/ui/CatalogAutocomplete";
+import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
 import { DEFAULT_CARD_LANGUAGE } from "@/lib/types";
 
@@ -247,18 +248,22 @@ export function AddCardsModal({
     onClose();
   }
 
+  const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } =
+    useDismissableBackdrop(requestClose);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
-      onClick={requestClose}
       role="presentation"
+      onMouseDown={onBackdropMouseDown}
+      onClick={onBackdropClick}
     >
       <div
         className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
         role="dialog"
         aria-modal="true"
         aria-labelledby="add-cards-title"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={onPanelMouseDown}
       >
         <div className="flex items-center justify-between gap-4">
           <h2 id="add-cards-title" className="text-xl font-semibold">

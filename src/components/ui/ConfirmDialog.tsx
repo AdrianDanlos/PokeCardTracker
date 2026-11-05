@@ -1,3 +1,5 @@
+import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
+
 export function ConfirmDialog({
   open,
   title,
@@ -17,13 +19,18 @@ export function ConfirmDialog({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } = useDismissableBackdrop(() => {
+    if (!loading) onCancel();
+  });
+
   if (!open) return null;
 
   return (
     <div
       className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-[2px]"
-      onClick={loading ? undefined : onCancel}
       role="presentation"
+      onMouseDown={loading ? undefined : onBackdropMouseDown}
+      onClick={loading ? undefined : onBackdropClick}
     >
       <div
         role="alertdialog"
@@ -31,7 +38,7 @@ export function ConfirmDialog({
         aria-labelledby="confirm-dialog-title"
         aria-describedby="confirm-dialog-desc"
         className="w-full max-w-md rounded-xl border border-border bg-surface-elevated p-6 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+        onMouseDown={onPanelMouseDown}
       >
         <h3 id="confirm-dialog-title" className="text-lg font-semibold text-foreground">
           {title}

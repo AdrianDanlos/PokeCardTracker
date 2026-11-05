@@ -18,7 +18,7 @@ flowchart LR
 
 ### `card_sources`
 
-One row per provider (`pokemontcg`, `tcgdex`, `manual`). New sources plug in via `CardSourceAdapter` without schema changes.
+One row per provider (`tcgdex`, `manual`).
 
 ### `sets`
 
@@ -26,31 +26,26 @@ Optional grouping: `source_id`, `external_id`, `name`, `series`, `language`, `re
 
 ### `cards`
 
-One row per exact printing. `external_id` null for manual cards. `category` enum: official, promo, variant, misprint, custom. `attrs` jsonb for provider extras. FTS + trigram on name/number.
+Catalog or manual cards: `source_id`, `external_id`, `set_id`, `name`, `language`, `image_path`, `image_url`, `attrs`. Full-text search on `name`.
 
 ### `collections`
 
-User-owned lists: name, description, `cover_image_path`, `goal_count`, `sort_order`.
+User lists: `name`, `description`, `cover_image_path`, `sort_order`.
 
 ### `collection_entries`
 
-Links collection ↔ card with `position` (binder order), optional `slot_label` and `notes`. Same card may appear in multiple collections.
+Links collection ↔ card with `position` (display order). Same card may appear in multiple collections.
 
 ### `owned_copies`
 
-Physical inventory **per copy group** (multiple rows per card allowed). Fields: condition, language, edition, variant, quantity, purchase_price, notes. Ownership is global per user—owned status reflects in every collection containing that card.
+One row per user per card when marked owned (`user_id`, `card_id`, `language`). Ownership is global—reflected in every collection containing that card.
 
-Unique group key: `(user_id, card_id, condition, edition, variant, language)` with nulls normalized in the index.
+## Views
 
-## Views / RPC
-
-- `collection_progress_summary` — entry totals, owned entry count, percent, goal metadata.
-- `collection_progress` — alias subset for reporting.
-- `collection_progress_breakdown(collection_id)` — JSON by rarity, set, category.
-
-Owned counts use **sum of quantities** across copy groups per card (no double-counting when multiple groups exist).
+- `collection_progress_summary` — entry totals, owned entry count, percent.
+- `collection_progress` — alias with a subset of columns.
 
 ## Storage
 
 - `collection-covers` — dashboard cover images (public read, user-scoped write).
-- `card-images` — manual uploads and cached API art (public read, user-scoped write).
+- `card-images` — cached or uploaded card art (public read, user-scoped write).

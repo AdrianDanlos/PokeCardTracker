@@ -108,6 +108,8 @@ create policy "card images auth upload" on storage.objects
   for insert to authenticated
   with check (bucket_id = 'card-images' and auth.uid()::text = (storage.foldername(name))[1]);
 
+create policy "sets update" on public.sets
+  for update to authenticated using (true);
+
 grant select on public.collection_progress_summary to authenticated;
 grant select on public.collection_progress to authenticated;
-grant execute on function public.collection_progress_breakdown(uuid) to authenticated;

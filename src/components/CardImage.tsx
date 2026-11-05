@@ -23,7 +23,14 @@ export function CardImage({
   }
   return (
     <div className={`relative overflow-hidden rounded-md bg-black/30 ${className}`}>
-      <img src={src} alt={alt} className="h-full w-full object-contain" loading="lazy" />
+      <img
+        src={src}
+        alt={alt}
+        className="h-full w-full select-none object-contain"
+        loading="lazy"
+        draggable={false}
+        onDragStart={(e) => e.preventDefault()}
+      />
     </div>
   );
 }

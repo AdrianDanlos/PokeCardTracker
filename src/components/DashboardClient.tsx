@@ -55,9 +55,6 @@ export function DashboardClient({
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">My collections</h1>
-          <p className="mt-2 max-w-xl text-muted">
-            Each collection is a list you define. Progress counts only the entries inside it.
-          </p>
         </div>
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <input

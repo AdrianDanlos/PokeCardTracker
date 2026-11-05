@@ -58,8 +58,8 @@ export function CollectionCard({
         <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-foreground group-hover:text-accent">
           {collection.name}
         </h2>
-        <div className="flex min-h-[1.75rem] items-center gap-3">
-          <p className="line-clamp-2 min-w-0 flex-1 text-sm leading-snug text-muted">
+        <div className="flex items-start gap-3">
+          <p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-line text-sm leading-snug text-muted">
             {clampCollectionDescription(collection.description?.trim() ?? "") || "\u00A0"}
           </p>
           <div className="w-[5.5rem] shrink-0">
