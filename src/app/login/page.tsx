@@ -1,8 +1,17 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { getSupabaseUrl, isUsingLocalSupabaseDefaults } from "@/lib/env";
 import Link from "next/link";
 import { useState } from "react";
+
+function friendlyAuthError(message: string): string {
+  if (message !== "Failed to fetch") return message;
+  if (isUsingLocalSupabaseDefaults()) {
+    return `Cannot reach local Supabase at ${getSupabaseUrl()}. From the repo root run: npx supabase start — then retry. Magic-link emails show in Mailpit at http://127.0.0.1:54324.`;
+  }
+  return "Cannot reach Supabase. Check NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY in .env.local, and that your Supabase project is active.";
+}
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -18,7 +27,7 @@ export default function LoginPage() {
       email,
       options: { emailRedirectTo: `${origin}/auth/callback` },
     });
-    if (authError) setError(authError.message);
+    if (authError) setError(friendlyAuthError(authError.message));
     else setSent(true);
   }
 

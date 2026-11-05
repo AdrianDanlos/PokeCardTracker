@@ -26,7 +26,9 @@ npm run db:seed-demo    # demo collections (Gym Era + Promos, etc.)
 npm run dev
 ```
 
-3. Open [http://localhost:3000](http://localhost:3000). Use **Magic link login** (`/login`). For local auth emails, open Inbucket at [http://127.0.0.1:54324](http://127.0.0.1:54324).
+3. Open [http://localhost:3000](http://localhost:3000). Use **Magic link login** (`/login`). For local auth emails, open Mailpit at [http://127.0.0.1:54324](http://127.0.0.1:54324).
+
+If `npm run dev` shows **Failed to fetch** on login, the app is almost always pointing at local Supabase (`127.0.0.1:54321`) while Docker/Supabase is stopped. Run `npx supabase start` and try again. If you copied production env vars into `.env.local`, either remove them for local work or use `npm run dev:local` to force the local stack.
 
 Without a running Supabase instance, the UI still loads **static demo data** matching the design mockups. When production Supabase env vars are set, unauthenticated users are prompted to sign in instead of seeing demo collections.
 
