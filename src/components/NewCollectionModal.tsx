@@ -38,7 +38,14 @@ export function NewCollectionModal({
       .single();
     setLoading(false);
     if (insertError || !data) {
-      setError(insertError?.message ?? "Could not create collection");
+      const message = insertError?.message ?? "Could not create collection";
+      if (message.includes("public.collections")) {
+        setError(
+          "Database schema is not applied on Supabase yet. Run npm run db:push (see supabase/PRODUCTION.md).",
+        );
+      } else {
+        setError(message);
+      }
       return;
     }
     onCreated({

@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:seed-demo": "npx tsx scripts/seed-demo.ts",
+    "db:push": "supabase db push",
     "db:reset": "npx supabase db reset"
   },
   "dependencies": {
