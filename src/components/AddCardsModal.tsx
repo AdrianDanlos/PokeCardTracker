@@ -390,11 +390,7 @@ export function AddCardsModal({
                     <ol className="list-decimal space-y-3 pl-5 text-sm text-muted">
                       <li>Copy prompt</li>
                       <li>Paste to AI to get results</li>
-                      <li>
-                        Ask AI to reorder the cards to match the binder order we
-                        want
-                      </li>
-                      <li>Paste the JSON below</li>
+                      <li>Paste the JSON returned below</li>
                     </ol>
                     <button
                       type="button"

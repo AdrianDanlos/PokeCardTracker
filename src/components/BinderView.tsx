@@ -44,12 +44,6 @@ function totalPagesForSlotCount(slotCount: number) {
   return Math.max(1, Math.ceil(slotCount / POCKETS_PER_PAGE));
 }
 
-function spreadLabel(spreadIndex: number, totalPages: number) {
-  const p1 = spreadIndex * 2 + 1;
-  const p2 = Math.min(spreadIndex * 2 + 2, totalPages);
-  return p1 === p2 ? `${p1}` : `${p1}–${p2}`;
-}
-
 type JumpItem =
   | { kind: "jump"; index: number; label: string }
   | { kind: "ellipsis" };
@@ -107,21 +101,6 @@ function removeLastGapOnPage(gaps: number[], pageIndex: number): number[] {
   if (onPage.length === 0) return gaps;
   const remove = onPage[onPage.length - 1]!;
   return gaps.filter((g) => g !== remove);
-}
-
-function useMobileLayout() {
-  const [mobile, setMobile] = useState(() =>
-    typeof window !== "undefined"
-      ? window.matchMedia("(max-width: 767px)").matches
-      : false,
-  );
-  useEffect(() => {
-    const mq = window.matchMedia("(max-width: 767px)");
-    const onChange = () => setMobile(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
-  return mobile;
 }
 
 function BinderRings() {
@@ -303,29 +282,26 @@ export function BinderView({
   onGapsChange?: (gaps: number[]) => void;
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
 }) {
-  const isMobile = useMobileLayout();
   const effectiveGaps = onGapsChange ? gaps : [];
   const slots = useMemo(
     () => buildBinderSlots(entries, effectiveGaps),
     [entries, effectiveGaps],
   );
   const totalPages = totalPagesForSlotCount(slots.length);
-  const totalSpreads = Math.ceil(totalPages / 2);
-  const navUnitCount = isMobile ? totalPages : totalSpreads;
-  const maxNavIndex = Math.max(0, navUnitCount - 1);
+  const maxNavIndex = Math.max(0, totalPages - 1);
 
-  const [navIndex, setNavIndex] = useState(0);
+  const [pageIndex, setPageIndex] = useState(0);
 
   useEffect(() => {
-    setNavIndex((i) => Math.min(i, maxNavIndex));
+    setPageIndex((i) => Math.min(i, maxNavIndex));
   }, [maxNavIndex]);
 
   const goPrev = useCallback(() => {
-    setNavIndex((i) => Math.max(0, i - 1));
+    setPageIndex((i) => Math.max(0, i - 1));
   }, []);
 
   const goNext = useCallback(() => {
-    setNavIndex((i) => Math.min(maxNavIndex, i + 1));
+    setPageIndex((i) => Math.min(maxNavIndex, i + 1));
   }, [maxNavIndex]);
 
   useEffect(() => {
@@ -342,24 +318,12 @@ export function BinderView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goPrev, goNext]);
 
-  const leftPageIndex = isMobile ? navIndex : navIndex * 2;
-  const rightPageIndex = isMobile ? -1 : navIndex * 2 + 1;
-  const showRightPage = !isMobile && rightPageIndex < totalPages;
+  const navTitle = `Page ${pageIndex + 1} of ${totalPages}`;
 
-  const navTitle = isMobile
-    ? `Page ${navIndex + 1} of ${totalPages}`
-    : showRightPage
-      ? `Pages ${leftPageIndex + 1}–${rightPageIndex + 1} of ${totalPages}`
-      : `Page ${leftPageIndex + 1} of ${totalPages}`;
-
-  const jumpItems = useMemo(() => {
-    if (isMobile) {
-      return buildJumpItems(navIndex, totalPages, (i) => `${i + 1}`);
-    }
-    return buildJumpItems(navIndex, totalSpreads, (i) =>
-      spreadLabel(i, totalPages),
-    );
-  }, [isMobile, navIndex, totalPages, totalSpreads]);
+  const jumpItems = useMemo(
+    () => buildJumpItems(pageIndex, totalPages, (i) => `${i + 1}`),
+    [pageIndex, totalPages],
+  );
 
   return (
     <div className="space-y-4">
@@ -367,7 +331,7 @@ export function BinderView({
         <button
           type="button"
           className="btn-ghost px-3 py-2 disabled:opacity-40"
-          disabled={navIndex <= 0}
+          disabled={pageIndex <= 0}
           onClick={goPrev}
           aria-label="Previous page"
         >
@@ -379,7 +343,7 @@ export function BinderView({
         <button
           type="button"
           className="btn-ghost px-3 py-2 disabled:opacity-40"
-          disabled={navIndex >= maxNavIndex}
+          disabled={pageIndex >= maxNavIndex}
           onClick={goNext}
           aria-label="Next page"
         >
@@ -389,27 +353,15 @@ export function BinderView({
 
       <div className="rounded-2xl border border-border bg-surface-elevated p-3 sm:p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
+          <BinderRings />
           <BinderPagePanel
-            pageIndex={leftPageIndex}
-            pageNumberOneBased={leftPageIndex + 1}
+            pageIndex={pageIndex}
+            pageNumberOneBased={pageIndex + 1}
             slots={slots}
             gaps={effectiveGaps}
             onToggleOwned={onToggleOwned}
             onGapsChange={onGapsChange}
           />
-          <BinderRings />
-          {showRightPage ? (
-            <BinderPagePanel
-              pageIndex={rightPageIndex}
-              pageNumberOneBased={rightPageIndex + 1}
-              slots={slots}
-              gaps={effectiveGaps}
-              onToggleOwned={onToggleOwned}
-              onGapsChange={onGapsChange}
-            />
-          ) : (
-            <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
-          )}
         </div>
       </div>
 
@@ -424,11 +376,11 @@ export function BinderView({
               key={item.label}
               type="button"
               className={
-                item.index === navIndex
+                item.index === pageIndex
                   ? "btn-primary px-3 py-1 text-sm"
                   : "btn-ghost px-3 py-1 text-sm"
               }
-              onClick={() => setNavIndex(item.index)}
+              onClick={() => setPageIndex(item.index)}
             >
               {item.label}
             </button>

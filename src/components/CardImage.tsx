@@ -31,7 +31,7 @@ export function CardImage({
       <img
         src={src}
         alt={alt}
-        className={`h-full w-full select-none object-contain ${dimmed ? "" : "brightness-115 saturate-115"}`}
+        className={`h-full w-full select-none object-contain ${dimmed ? "" : "brightness-110 saturate-115"}`}
         loading="lazy"
         draggable={false}
         onDragStart={(e) => e.preventDefault()}
