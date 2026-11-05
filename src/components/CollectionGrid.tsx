@@ -21,7 +21,7 @@ import { useState, type CSSProperties } from "react";
 import { CollectionCard } from "@/components/CollectionCard";
 import type { CollectionProgressSummary } from "@/lib/types";
 
-const DRAG_ACTIVATION_DISTANCE_PX = 8;
+const DRAG_ACTIVATION_DISTANCE_PX = 0;
 
 function SortableCollectionCard({
   collection,
@@ -88,10 +88,13 @@ export function CollectionGrid({
   onDelete: (collection: CollectionProgressSummary) => void;
   deletingId: string | null;
 }) {
-  const dragActivation = { distance: DRAG_ACTIVATION_DISTANCE_PX };
   const sensors = useSensors(
-    useSensor(MouseSensor, { activationConstraint: dragActivation }),
-    useSensor(TouchSensor, { activationConstraint: dragActivation }),
+    useSensor(MouseSensor, {
+      activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 0, tolerance: DRAG_ACTIVATION_DISTANCE_PX },
+    }),
     useSensor(KeyboardSensor),
   );
 

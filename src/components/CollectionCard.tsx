@@ -7,6 +7,7 @@ import {
   collectionOwnedPercentFill,
 } from "@/lib/collection-progress";
 import type { CollectionProgressSummary } from "@/lib/types";
+import { DragGripIcon } from "@/components/ui/DragGripIcon";
 import type { CSSProperties, SyntheticEvent } from "react";
 
 const GRADIENTS = [
@@ -15,20 +16,6 @@ const GRADIENTS = [
   "from-emerald-900/60 via-emerald-950 to-surface",
   "from-violet-900/70 via-violet-950 to-surface",
 ];
-
-function CollectionDragGrip() {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 20 20"
-      fill="currentColor"
-      className="h-4 w-4"
-      aria-hidden
-    >
-      <path d="M7 4a1 1 0 11-2 0 1 1 0 012 0zM7 10a1 1 0 11-2 0 1 1 0 012 0zM7 16a1 1 0 11-2 0 1 1 0 012 0zM13 4a1 1 0 11-2 0 1 1 0 012 0zM13 10a1 1 0 11-2 0 1 1 0 012 0zM13 16a1 1 0 11-2 0 1 1 0 012 0z" />
-    </svg>
-  );
-}
 
 export function CollectionCard({
   collection,
@@ -73,11 +60,11 @@ export function CollectionCard({
           {...dragHandle.attributes}
           {...dragHandle.listeners}
           aria-label={`Drag ${collection.name} to reorder`}
-          className="absolute left-2 top-2 z-20 flex h-8 w-8 cursor-grab items-center justify-center rounded-md bg-black/50 text-muted transition hover:bg-black/70 hover:text-foreground active:cursor-grabbing"
+          className="drag-handle absolute left-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-md bg-black/50 text-muted transition hover:bg-black/70 hover:text-foreground"
           onClick={stopNav}
           onPointerDown={(e) => e.stopPropagation()}
         >
-          <CollectionDragGrip />
+          <DragGripIcon />
         </button>
       ) : null}
       {canDelete && (

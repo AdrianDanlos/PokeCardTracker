@@ -46,12 +46,20 @@ body {
   box-sizing: border-box;
 }
 
-button:not(:disabled) {
+button:not(:disabled):not(.drag-handle) {
   cursor: pointer;
 }
 
 button:disabled {
   cursor: not-allowed;
+}
+
+button.drag-handle:not(:disabled) {
+  cursor: grab;
+}
+
+button.drag-handle:not(:disabled):active {
+  cursor: grabbing;
 }
 
 .progress-track {
