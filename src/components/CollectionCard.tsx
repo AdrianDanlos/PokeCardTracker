@@ -25,6 +25,7 @@ export function CollectionCard({
   sortableRef,
   sortableStyle,
   dragHandle,
+  dragHandleVisual,
 }: {
   collection: CollectionProgressSummary;
   index: number;
@@ -37,6 +38,7 @@ export function CollectionCard({
     attributes: object;
     listeners: object | undefined;
   };
+  dragHandleVisual?: boolean;
 }) {
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const cover = coverImageSrc(collection.cover_image_path);
@@ -66,6 +68,13 @@ export function CollectionCard({
         >
           <DragGripIcon />
         </button>
+      ) : dragHandleVisual ? (
+        <span
+          aria-hidden
+          className="absolute left-2 top-2 z-20 flex h-8 w-8 items-center justify-center rounded-md bg-black/50 text-muted"
+        >
+          <DragGripIcon />
+        </span>
       ) : null}
       {canDelete && (
         <button

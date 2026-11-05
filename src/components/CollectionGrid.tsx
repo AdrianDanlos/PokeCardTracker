@@ -164,8 +164,12 @@ export function CollectionGrid({
       </SortableContext>
       <DragOverlay dropAnimation={null} adjustScale={false}>
         {activeCollection ? (
-          <div className="pointer-events-none rotate-1 scale-[1.02] opacity-95 shadow-2xl ring-2 ring-accent/50">
-            <CollectionCard collection={activeCollection} index={0} />
+          <div className="pointer-events-none rotate-1 scale-[1.02] opacity-95 shadow-2xl">
+            <CollectionCard
+              collection={activeCollection}
+              index={0}
+              dragHandleVisual
+            />
           </div>
         ) : null}
       </DragOverlay>

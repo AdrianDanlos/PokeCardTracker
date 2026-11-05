@@ -38,6 +38,7 @@ function CardTileBody({
   onEditEntry,
   className = "",
   dragHandle,
+  dragHandleVisual,
   setNodeRef,
   style,
 }: {
@@ -51,6 +52,8 @@ function CardTileBody({
     attributes: object;
     listeners: object | undefined;
   };
+  /** Static grip (e.g. drag overlay) — same look, no sortable listeners */
+  dragHandleVisual?: boolean;
   setNodeRef?: (node: HTMLElement | null) => void;
   style?: CSSProperties;
 }) {
@@ -80,6 +83,13 @@ function CardTileBody({
           >
             <DragGripIcon />
           </button>
+        ) : dragHandleVisual ? (
+          <span
+            aria-hidden
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-black/50 text-muted"
+          >
+            <DragGripIcon />
+          </span>
         ) : null}
         <button
           type="button"
@@ -149,26 +159,6 @@ function CardTileBody({
   );
 }
 
-function DragOverlayTile({ entry }: { entry: CollectionEntryWithCard }) {
-  const owned = entry.owned;
-  return (
-    <div
-      className={`pointer-events-none flex w-[min(42vw,11rem)] flex-col rounded-lg p-3 shadow-2xl ring-2 ring-accent/40 ${
-        owned ? "card-tile-owned" : "card-tile-missing"
-      }`}
-    >
-      <CardImage
-        imagePath={entry.card.image_path}
-        imageUrl={entry.card.image_url}
-        alt={entry.card.name}
-        dimmed={!owned}
-        className="mb-2 aspect-[3/4] w-full"
-      />
-      <p className="line-clamp-2 text-sm font-medium leading-tight">{entry.card.name}</p>
-    </div>
-  );
-}
-
 function SortableCardTile({
   entry,
   onToggleOwned,
@@ -182,19 +172,25 @@ function SortableCardTile({
   onEditEntry?: (entry: CollectionEntryWithCard) => void;
   dragDisabled: boolean;
 }) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, isDragging } =
-    useSortable({
-      id: entry.id,
-      disabled: dragDisabled,
-      transition: null,
-      animateLayoutChanges: () => false,
-    });
-  const style = dragDisabled
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: entry.id,
+    disabled: dragDisabled,
+  });
+
+  const style: CSSProperties | undefined = dragDisabled
     ? undefined
     : {
-        transform: isDragging ? undefined : CSS.Transform.toString(transform),
-        transition: "none",
-        opacity: isDragging ? 0.35 : 1,
+        transform: CSS.Translate.toString(transform),
+        transition,
+        opacity: isDragging ? 0.45 : 1,
       };
 
   return (
@@ -304,7 +300,16 @@ export function CardGrid({
         </div>
       </SortableContext>
       <DragOverlay dropAnimation={null} adjustScale={false}>
-        {activeEntry ? <DragOverlayTile entry={activeEntry} /> : null}
+        {activeEntry ? (
+          <div className="pointer-events-none rotate-1 scale-[1.02] opacity-95 shadow-2xl">
+            <CardTileBody
+              entry={activeEntry}
+              onToggleOwned={() => {}}
+              onRemoveEntry={() => {}}
+              dragHandleVisual
+            />
+          </div>
+        ) : null}
       </DragOverlay>
     </DndContext>
   );

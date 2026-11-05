@@ -62,6 +62,11 @@ button.drag-handle:not(:disabled):active {
   cursor: grabbing;
 }
 
+button.drag-handle:focus,
+button.drag-handle:focus-visible {
+  outline: none;
+}
+
 .progress-track {
   background: var(--border);
   border-radius: 999px;
