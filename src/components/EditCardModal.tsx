@@ -1,18 +1,20 @@
 import { ManualCardFormFields } from "@/components/ManualCardFormFields";
-import { updateCardDisplay } from "@/lib/api/cards";
+import { updateCardDisplay, uploadCardDisplayImage } from "@/lib/api/cards";
 import { cardImageSrc } from "@/lib/images";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import type { CollectionEntryWithCard } from "@/lib/types";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 export function EditCardModal({
   entry,
   onClose,
   onSaved,
+  onImageUploadFailed,
 }: {
   entry: CollectionEntryWithCard;
   onClose: () => void;
   onSaved: (updated: CollectionEntryWithCard["card"]) => void;
+  onImageUploadFailed?: (message: string) => void;
 }) {
   const [cardName, setCardName] = useState(entry.card.name);
   const [setLabel, setSetLabel] = useState(entry.card.set?.name?.trim() ?? "");
@@ -20,6 +22,10 @@ export function EditCardModal({
   const [imageCleared, setImageCleared] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const imageBeforeEditRef = useRef({
+    image_path: entry.card.image_path,
+    image_url: entry.card.image_url,
+  });
 
   const initialPreviewUrl = useMemo(
     () => cardImageSrc(entry.card.image_path, entry.card.image_url),
@@ -33,16 +39,18 @@ export function EditCardModal({
     e?.preventDefault?.();
     setError(null);
     setSaving(true);
+    const pendingFile = imageFile;
+    const clearImage = imageCleared && !pendingFile;
     try {
       const card = await updateCardDisplay({
         cardId: entry.card_id,
         language: entry.card.language,
         name: cardName,
         setName: setLabel,
-        imageFile,
-        clearImage: imageCleared && !imageFile,
+        clearImage,
       });
-      onSaved({
+
+      const saved: CollectionEntryWithCard["card"] = {
         id: card.id,
         source_id: card.source_id,
         external_id: card.external_id,
@@ -53,8 +61,40 @@ export function EditCardModal({
         image_url: card.image_url,
         attrs: card.attrs ?? {},
         set: card.set,
-      });
+      };
+
+      let optimisticBlobUrl: string | null = null;
+      if (pendingFile) {
+        optimisticBlobUrl = URL.createObjectURL(pendingFile);
+        saved.image_path = null;
+        saved.image_url = optimisticBlobUrl;
+      }
+
+      onSaved(saved);
       onClose();
+
+      if (pendingFile) {
+        void uploadCardDisplayImage(entry.card_id, pendingFile)
+          .then((imagePath) => {
+            if (optimisticBlobUrl) URL.revokeObjectURL(optimisticBlobUrl);
+            onSaved({
+              ...saved,
+              image_path: imagePath,
+              image_url: null,
+            });
+          })
+          .catch((err) => {
+            if (optimisticBlobUrl) URL.revokeObjectURL(optimisticBlobUrl);
+            onSaved({
+              ...saved,
+              image_path: imageBeforeEditRef.current.image_path,
+              image_url: imageBeforeEditRef.current.image_url,
+            });
+            onImageUploadFailed?.(
+              err instanceof Error ? err.message : "Photo upload failed",
+            );
+          });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save");
     } finally {

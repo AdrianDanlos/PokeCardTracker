@@ -428,16 +428,6 @@ export async function createManualCard(
     .single();
   if (cardErr) throw new Error(cardErr.message);
 
-  if (params.imageFile) {
-    onProgress?.("Uploading photo…");
-    const ext = params.imageFile.name.split(".").pop() ?? "jpg";
-    const path = `${userData.user.id}/manual/${card.id}.${ext}`;
-    const { error: upErr } = await supabase.storage.from("card-images").upload(path, params.imageFile, {
-      upsert: true,
-    });
-    if (!upErr) await supabase.from("cards").update({ image_path: path }).eq("id", card.id);
-  }
-
   onProgress?.("Adding to collection…");
   const { data: maxPos } = await supabase
     .from("collection_entries")
@@ -457,7 +447,27 @@ export async function createManualCard(
     .select("id")
     .single();
   if (entryErr) throw new Error(entryErr.message);
+
+  if (params.imageFile) {
+    void uploadCardDisplayImage(card.id as string, params.imageFile).catch(() => {
+      /* card row exists; photo may appear after retry or re-edit */
+    });
+  }
+
   return entry.id as string;
+}
+
+export async function uploadCardDisplayImage(cardId: string, imageFile: File): Promise<string> {
+  const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) throw new Error("Unauthorized");
+  const path = await uploadManualCardImageFile(supabase, userData.user.id, cardId, imageFile);
+  const { error: imgErr } = await supabase
+    .from("cards")
+    .update({ image_path: path })
+    .eq("id", cardId);
+  if (imgErr) throw new Error(imgErr.message);
+  return path;
 }
 
 async function uploadManualCardImageFile(
@@ -465,7 +475,7 @@ async function uploadManualCardImageFile(
   userId: string,
   cardId: string,
   imageFile: File,
-): Promise<string | null> {
+): Promise<string> {
   const ext = imageFile.name.split(".").pop() ?? "jpg";
   const path = `${userId}/manual/${cardId}.${ext}`;
   const { error: upErr } = await supabase.storage.from("card-images").upload(path, imageFile, {
@@ -480,7 +490,6 @@ export async function updateCardDisplay(params: {
   language: string;
   name: string;
   setName: string;
-  imageFile?: File | null;
   clearImage?: boolean;
 }) {
   const name = params.name.trim();
@@ -498,27 +507,13 @@ export async function updateCardDisplay(params: {
     name,
     set_id: setId,
   };
-  if (params.clearImage && !params.imageFile) {
+  if (params.clearImage) {
     displayPatch.image_path = null;
     displayPatch.image_url = null;
   }
 
   const { error } = await supabase.from("cards").update(displayPatch).eq("id", params.cardId);
   if (error) throw new Error(error.message);
-
-  if (params.imageFile) {
-    const imagePath = await uploadManualCardImageFile(
-      supabase,
-      userData.user.id,
-      params.cardId,
-      params.imageFile,
-    );
-    const { error: imgErr } = await supabase
-      .from("cards")
-      .update({ image_path: imagePath })
-      .eq("id", params.cardId);
-    if (imgErr) throw new Error(imgErr.message);
-  }
 
   const { data: refreshed, error: refreshErr } = await supabase
     .from("cards")

@@ -62,6 +62,7 @@ export function CollectionViewClient({
     imported: number;
     unresolved: JsonSetImportUnresolved[];
   } | null>(null);
+  const [cardImageUploadError, setCardImageUploadError] = useState<string | null>(null);
   const jsonImportOptimisticKeysRef = useRef<string[]>([]);
   const orderedEntries = useMemo(
     () => [...entries].sort((a, b) => a.position - b.position),
@@ -431,6 +432,7 @@ export function CollectionViewClient({
             applyCardDisplayUpdate(editEntry.card_id, card);
             setEditEntry(null);
           }}
+          onImageUploadFailed={(message) => setCardImageUploadError(message)}
         />
       )}
       {jsonImportProgress && (
@@ -471,6 +473,12 @@ export function CollectionViewClient({
         title="Could not save settings"
         description={settingsSaveError ?? ""}
         onClose={() => setSettingsSaveError(null)}
+      />
+      <AlertDialog
+        open={cardImageUploadError != null}
+        title="Photo upload failed"
+        description={cardImageUploadError ?? ""}
+        onClose={() => setCardImageUploadError(null)}
       />
       <AlertDialog
         open={jsonImportError != null}
