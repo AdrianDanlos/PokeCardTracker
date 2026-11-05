@@ -9,8 +9,10 @@ export function CoverImageField({
   actionsWrapClassName = "w-full",
   emptyTextClassName = "text-sm",
   existingCoverPath,
+  fallbackPreviewUrl,
   file,
   onFileChange,
+  onClearPreview,
   disabled = false,
 }: {
   label?: string;
@@ -20,8 +22,12 @@ export function CoverImageField({
   actionsWrapClassName?: string;
   emptyTextClassName?: string;
   existingCoverPath?: string | null;
+  /** Shown when no new file is picked (e.g. card image URL or cached path). */
+  fallbackPreviewUrl?: string | null;
   file?: File | null;
   onFileChange: (file: File | null) => void;
+  /** Called when user removes the current preview (new file or fallback). */
+  onClearPreview?: () => void;
   disabled?: boolean;
 }) {
   const inputId = useId();
@@ -37,7 +43,11 @@ export function CoverImageField({
     return () => URL.revokeObjectURL(url);
   }, [file]);
 
-  const previewUrl = objectUrl ?? (existingCoverPath ? coverImageSrc(existingCoverPath) : null);
+  const previewUrl =
+    objectUrl ??
+    (existingCoverPath ? coverImageSrc(existingCoverPath) : null) ??
+    fallbackPreviewUrl ??
+    null;
   const fileLabel = file?.name;
 
   const showLabel = label.trim().length > 0;
@@ -59,10 +69,17 @@ export function CoverImageField({
         )}
       </label>
 
-      {(file && !disabled) || fileLabel ? (
+      {(previewUrl && !disabled) || fileLabel ? (
         <div className={`flex flex-col gap-2 ${actionsWrapClassName}`}>
-          {file && !disabled && (
-            <button type="button" className="btn-ghost w-full" onClick={() => onFileChange(null)}>
+          {previewUrl && !disabled && (
+            <button
+              type="button"
+              className="btn-ghost w-full"
+              onClick={() => {
+                onFileChange(null);
+                onClearPreview?.();
+              }}
+            >
               Remove
             </button>
           )}

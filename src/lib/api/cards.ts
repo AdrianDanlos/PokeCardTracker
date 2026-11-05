@@ -460,11 +460,28 @@ export async function createManualCard(
   return entry.id as string;
 }
 
+async function uploadManualCardImageFile(
+  supabase: SupabaseClient,
+  userId: string,
+  cardId: string,
+  imageFile: File,
+): Promise<string | null> {
+  const ext = imageFile.name.split(".").pop() ?? "jpg";
+  const path = `${userId}/manual/${cardId}.${ext}`;
+  const { error: upErr } = await supabase.storage.from("card-images").upload(path, imageFile, {
+    upsert: true,
+  });
+  if (upErr) throw new Error(upErr.message);
+  return path;
+}
+
 export async function updateCardDisplay(params: {
   cardId: string;
   language: string;
   name: string;
   setName: string;
+  imageFile?: File | null;
+  clearImage?: boolean;
 }) {
   const name = params.name.trim();
   const setName = params.setName.trim();
@@ -472,12 +489,39 @@ export async function updateCardDisplay(params: {
   if (!setName) throw new Error("Set name is required");
 
   const supabase = createClient();
+  const { data: userData } = await supabase.auth.getUser();
+  if (!userData.user) throw new Error("Unauthorized");
+
   const setId = await upsertSetFromSearch(supabase, "manual", null, setName, params.language);
 
-  const { data: card, error } = await supabase
+  const displayPatch: { name: string; set_id: string; image_path?: null; image_url?: null } = {
+    name,
+    set_id: setId,
+  };
+  if (params.clearImage && !params.imageFile) {
+    displayPatch.image_path = null;
+    displayPatch.image_url = null;
+  }
+
+  const { error } = await supabase.from("cards").update(displayPatch).eq("id", params.cardId);
+  if (error) throw new Error(error.message);
+
+  if (params.imageFile) {
+    const imagePath = await uploadManualCardImageFile(
+      supabase,
+      userData.user.id,
+      params.cardId,
+      params.imageFile,
+    );
+    const { error: imgErr } = await supabase
+      .from("cards")
+      .update({ image_path: imagePath })
+      .eq("id", params.cardId);
+    if (imgErr) throw new Error(imgErr.message);
+  }
+
+  const { data: refreshed, error: refreshErr } = await supabase
     .from("cards")
-    .update({ name, set_id: setId })
-    .eq("id", params.cardId)
     .select(
       `
         id, source_id, external_id, set_id, name, language,
@@ -485,8 +529,9 @@ export async function updateCardDisplay(params: {
         set:sets ( id, source_id, external_id, name, series, language, release_date, image_path )
       `,
     )
+    .eq("id", params.cardId)
     .single();
-  if (error) throw new Error(error.message);
+  if (refreshErr) throw new Error(refreshErr.message);
 
   type SetRow = {
     id: string;
@@ -499,7 +544,7 @@ export async function updateCardDisplay(params: {
     image_path: string | null;
   };
 
-  const raw = card as {
+  const raw = refreshed as {
     id: string;
     source_id: string;
     external_id: string | null;

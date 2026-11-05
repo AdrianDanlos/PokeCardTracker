@@ -445,7 +445,6 @@ export function CollectionViewClient({
       {showAdd && (
         <AddCardsModal
           collectionId={collection.collection_id}
-          collectionName={collection.name}
           onClose={() => setShowAdd(false)}
           onAdded={onReload}
           onJsonImportStart={(groups) => void runJsonImport(groups)}

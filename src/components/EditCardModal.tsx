@@ -1,7 +1,9 @@
+import { ManualCardFormFields } from "@/components/ManualCardFormFields";
 import { updateCardDisplay } from "@/lib/api/cards";
+import { cardImageSrc } from "@/lib/images";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import type { CollectionEntryWithCard } from "@/lib/types";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 export function EditCardModal({
   entry,
@@ -12,10 +14,20 @@ export function EditCardModal({
   onClose: () => void;
   onSaved: (updated: CollectionEntryWithCard["card"]) => void;
 }) {
-  const [name, setName] = useState(entry.card.name);
+  const [cardName, setCardName] = useState(entry.card.name);
   const [setLabel, setSetLabel] = useState(entry.card.set?.name?.trim() ?? "");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [imageCleared, setImageCleared] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const initialPreviewUrl = useMemo(
+    () => cardImageSrc(entry.card.image_path, entry.card.image_url),
+    [entry.card.image_path, entry.card.image_url],
+  );
+
+  const imagePreviewUrl =
+    imageCleared && !imageFile ? null : (initialPreviewUrl ?? null);
 
   async function save(e?: { preventDefault?: () => void }) {
     e?.preventDefault?.();
@@ -25,8 +37,10 @@ export function EditCardModal({
       const card = await updateCardDisplay({
         cardId: entry.card_id,
         language: entry.card.language,
-        name,
+        name: cardName,
         setName: setLabel,
+        imageFile,
+        clearImage: imageCleared && !imageFile,
       });
       onSaved({
         id: card.id,
@@ -68,25 +82,26 @@ export function EditCardModal({
             Close
           </button>
         </div>
-        <label className="space-y-1 text-sm">
-          <span className="text-muted">Card name</span>
-          <input
-            className="input w-full"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            required
-            autoFocus
+        <div className="space-y-3">
+          <ManualCardFormFields
+            name={cardName}
+            setName={setLabel}
+            onNameChange={setCardName}
+            onSetNameChange={setSetLabel}
+            imageFile={imageFile}
+            onImageFileChange={(file) => {
+              setImageFile(file);
+              if (file) setImageCleared(false);
+            }}
+            imagePreviewUrl={imagePreviewUrl}
+            onImageClear={() => {
+              setImageFile(null);
+              setImageCleared(true);
+            }}
+            disabled={saving}
+            nameAutoFocus
           />
-        </label>
-        <label className="space-y-1 text-sm">
-          <span className="text-muted">Set</span>
-          <input
-            className="input w-full"
-            value={setLabel}
-            onChange={(e) => setSetLabel(e.target.value)}
-            required
-          />
-        </label>
+        </div>
         {error && <p className="text-sm text-red-400">{error}</p>}
         <button type="submit" className="btn-primary w-full" disabled={saving}>
           {saving ? "Saving…" : "Save"}

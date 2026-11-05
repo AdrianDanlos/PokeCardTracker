@@ -8,7 +8,7 @@ import type { JsonSetImportGroup } from "@/lib/json-set-import";
 import { buildJsonSetImportAiPrompt } from "@/lib/json-set-import-ai-prompt";
 import { parseJsonSetImport } from "@/lib/json-set-import";
 import { AlertDialog } from "@/components/ui/AlertDialog";
-import { CoverImageField } from "@/components/ui/CoverImageField";
+import { ManualCardFormFields } from "@/components/ManualCardFormFields";
 import {
   CatalogAutocomplete,
   type CatalogAutocompleteOption,
@@ -29,7 +29,6 @@ const TCGDEX_CATALOG_LANGUAGE = "en" as const;
 
 export function AddCardsModal({
   collectionId,
-  collectionName,
   onClose,
   onAdded,
   onOptimisticCardAdd,
@@ -38,7 +37,6 @@ export function AddCardsModal({
   onJsonImportStart,
 }: {
   collectionId: string;
-  collectionName: string;
   onClose: () => void;
   onAdded: () => void;
   onOptimisticCardAdd?: (row: CatalogSearchRow) => void;
@@ -58,6 +56,7 @@ export function AddCardsModal({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [manualName, setManualName] = useState("");
+  const [manualSetName, setManualSetName] = useState("");
   const [manualImage, setManualImage] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [addErrorDialog, setAddErrorDialog] = useState<string | null>(null);
@@ -182,7 +181,7 @@ export function AddCardsModal({
         {
           collectionId,
           name: manualName,
-          setName: collectionName,
+          setName: manualSetName,
           language: DEFAULT_CARD_LANGUAGE,
           imageFile: manualImage,
         },
@@ -293,7 +292,7 @@ export function AddCardsModal({
                     />
                   </li>
                   <li>Copy prompt</li>
-                  <li>Paste to AI to get results (DeepSeek recommended)</li>
+                  <li>Paste to AI to get results</li>
                   <li>Ask AI to reorder the cards to match the binder order we want</li>
                   <li>Paste the JSON below</li>
                 </ol>
@@ -334,22 +333,13 @@ export function AddCardsModal({
 
           {tab === "manual" && (
             <form className="space-y-3" onSubmit={createManual}>
-              <input
-                className="input"
-                placeholder="Card name"
-                required
-                value={manualName}
-                onChange={(e) => setManualName(e.target.value)}
-              />
-              <CoverImageField
-                label=""
-                emptyText="No photo"
-                previewAspectClass="aspect-[3/4]"
-                previewWrapClassName="mx-auto w-full max-w-[120px]"
-                actionsWrapClassName="mx-auto w-full max-w-[120px]"
-                emptyTextClassName="text-xs"
-                file={manualImage}
-                onFileChange={setManualImage}
+              <ManualCardFormFields
+                name={manualName}
+                setName={manualSetName}
+                onNameChange={setManualName}
+                onSetNameChange={setManualSetName}
+                imageFile={manualImage}
+                onImageFileChange={setManualImage}
                 disabled={loading}
               />
               <button type="submit" className="btn-primary w-full" disabled={loading}>
