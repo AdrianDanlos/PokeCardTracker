@@ -1,4 +1,4 @@
-import type { CollectionEntryWithCard, OwnedCopyRecord } from "@/lib/types";
+import type { CollectionEntryWithCard } from "@/lib/types";
 
 export function exportCollectionCsv(entries: CollectionEntryWithCard[]) {
   const header = [
@@ -35,34 +35,6 @@ export function exportCollectionCsv(entries: CollectionEntryWithCard[]) {
       csvEscape(e.owned_copy?.variant ?? e.card.variant ?? ""),
       e.owned_copy?.purchase_price ?? "",
       csvEscape(e.owned_copy?.notes ?? ""),
-    ].join(","),
-  );
-  return [header, ...rows].join("\n");
-}
-
-export function exportInventoryCsv(copies: OwnedCopyRecord[], cardNames: Map<string, string>) {
-  const header = [
-    "card_id",
-    "name",
-    "quantity",
-    "condition",
-    "language",
-    "edition",
-    "variant",
-    "purchase_price",
-    "notes",
-  ].join(",");
-  const rows = copies.map((c) =>
-    [
-      c.card_id,
-      csvEscape(cardNames.get(c.card_id) ?? ""),
-      c.quantity,
-      c.condition,
-      csvEscape(c.language ?? ""),
-      csvEscape(c.edition ?? ""),
-      csvEscape(c.variant ?? ""),
-      c.purchase_price ?? "",
-      csvEscape(c.notes ?? ""),
     ].join(","),
   );
   return [header, ...rows].join("\n");
