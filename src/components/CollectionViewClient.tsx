@@ -272,11 +272,14 @@ export function CollectionViewClient({
   }
 
   const headerCollection = collection ?? initialCollection;
+  const knownEmptyCollection =
+    headerCollection != null && headerCollection.total_entries === 0;
+  const showEntriesLoading = cardsLoading && !knownEmptyCollection;
   const hasOptimisticEntries = entries.some((e) =>
     e.id.startsWith("optimistic-"),
   );
   const canReorderWithAi =
-    !cardsLoading &&
+    !showEntriesLoading &&
     !!headerCollection &&
     orderedEntries.length > 0 &&
     !hasOptimisticEntries;
@@ -632,7 +635,7 @@ export function CollectionViewClient({
               <button
                 key={mode}
                 type="button"
-                disabled={cardsLoading}
+                disabled={showEntriesLoading}
                 className={segmentButtonClass(viewMode === mode)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setViewModeAndPersist(mode)}
@@ -650,7 +653,7 @@ export function CollectionViewClient({
               <button
                 key={f}
                 type="button"
-                disabled={cardsLoading}
+                disabled={showEntriesLoading}
                 className={segmentButtonClass(filter === f)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectFilter(f)}
@@ -663,7 +666,7 @@ export function CollectionViewClient({
             ariaLabel="Set filter"
             allLabel="All sets"
             value={setFilterKey}
-            disabled={cardsLoading || setFilterOptions.length === 0}
+            disabled={showEntriesLoading || setFilterOptions.length === 0}
             options={setFilterOptions.map((opt) => ({
               value: opt.key,
               label: opt.label,
@@ -675,7 +678,7 @@ export function CollectionViewClient({
           <button
             type="button"
             className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={cardsLoading || !headerCollection}
+            disabled={showEntriesLoading || !headerCollection}
             onClick={() => setShowSettings(true)}
           >
             Settings
@@ -691,7 +694,7 @@ export function CollectionViewClient({
           <button
             type="button"
             className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={cardsLoading || !headerCollection}
+            disabled={showEntriesLoading || !headerCollection}
             onClick={() => setShowAdd(true)}
           >
             Add cards
@@ -705,12 +708,12 @@ export function CollectionViewClient({
             className="input w-full disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Search name or set"
             value={search}
-            disabled={cardsLoading}
+            disabled={showEntriesLoading}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onReload()}
           />
         </div>
-        {(search.trim() || setFilterKey) && !cardsLoading ? (
+        {(search.trim() || setFilterKey) && !showEntriesLoading ? (
           <p className="text-sm text-muted tabular-nums">
             {filtered.length} {filtered.length === 1 ? "result" : "results"}
           </p>
@@ -718,7 +721,7 @@ export function CollectionViewClient({
       </div>
 
       <div className="min-h-[calc(100dvh-14rem)]">
-        {cardsLoading ? (
+        {showEntriesLoading ? (
           <CollectionLoadingScreen />
         ) : cardsError ? (
           <p className="py-10 text-center text-red-400">{cardsError}</p>
