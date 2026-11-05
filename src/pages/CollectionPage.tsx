@@ -114,6 +114,12 @@ export function CollectionPage() {
         void queryClient.invalidateQueries({ queryKey: ["collections", user?.id] });
         void queryClient.invalidateQueries({ queryKey: ["collection-summary", id, user?.id] });
       }}
+      onBinderGapsSaved={(gaps) => {
+        queryClient.setQueryData<CollectionProgressSummary>(
+          ["collection-summary", id, user?.id],
+          (old) => (old ? { ...old, binder_gaps: gaps } : old),
+        );
+      }}
     />
   );
 }

@@ -13,6 +13,7 @@ import {
   removeEntryFromCollection,
   reorderCollectionEntries,
 } from "@/lib/api/collection-entries";
+import { setCollectionBinderGaps } from "@/lib/api/collections";
 import { setCardOwned } from "@/lib/api/owned";
 import { importTcgplayerSet } from "@/lib/api/tcgplayer-set";
 import { AlertDialog } from "@/components/ui/AlertDialog";
@@ -65,6 +66,7 @@ export function CollectionViewClient({
   onReload,
   onCollectionDeleted,
   onCollectionUpdated,
+  onBinderGapsSaved,
   initialSearch = "",
 }: {
   collection: CollectionProgressSummary | null;
@@ -77,25 +79,32 @@ export function CollectionViewClient({
   onReload: () => void | Promise<void>;
   onCollectionDeleted?: () => void;
   onCollectionUpdated?: () => void;
+  onBinderGapsSaved?: (gaps: number[]) => void;
   initialSearch?: string;
 }) {
   const [collection, setCollection] = useState(initialCollection);
   const [entries, setEntries] = useState(initialEntries);
+  const [binderGaps, setBinderGaps] = useState<number[]>(
+    () => initialCollection?.binder_gaps ?? [],
+  );
   const [seenCardsLoading, setSeenCardsLoading] = useState(cardsLoading);
   if (seenCardsLoading !== cardsLoading) {
     setSeenCardsLoading(cardsLoading);
     if (!cardsLoading && initialCollection) {
       setCollection(initialCollection);
+      setBinderGaps(initialCollection.binder_gaps ?? []);
       setEntries(initialEntries);
     }
   }
   if (!collection && initialCollection) {
     setCollection(initialCollection);
+    setBinderGaps(initialCollection.binder_gaps ?? []);
   }
 
   useEffect(() => {
     if (reloadSeq === 0) return;
     setCollection(initialCollection);
+    setBinderGaps(initialCollection?.binder_gaps ?? []);
     setEntries(initialEntries);
   }, [reloadSeq, initialCollection, initialEntries]);
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -179,6 +188,27 @@ export function CollectionViewClient({
         e.card_id === cardId ? { ...e, card: { ...e.card, ...card } } : e,
       ),
     );
+  }
+
+  const binderGapsEditable =
+    filter === "all" && !search.trim() && !!collection;
+
+  function changeBinderGaps(nextGaps: number[]) {
+    if (!collection) return;
+    const prevGaps = binderGaps;
+    setBinderGaps(nextGaps);
+    setCollection((c) => (c ? { ...c, binder_gaps: nextGaps } : c));
+
+    if (collection.collection_id.startsWith("demo-")) return;
+
+    void setCollectionBinderGaps(collection.collection_id, nextGaps)
+      .then(() => {
+        onBinderGapsSaved?.(nextGaps);
+      })
+      .catch(() => {
+        setBinderGaps(prevGaps);
+        setCollection((c) => (c ? { ...c, binder_gaps: prevGaps } : c));
+      });
   }
 
   function reorderEntries(orderedIds: string[]) {
@@ -645,8 +675,12 @@ export function CollectionViewClient({
         ) : collection ? (
           viewMode === "binder" ? (
             <BinderView
-              key={`binder-${collection.collection_id}-${search.trim()}`}
+              key={`binder-${collection.collection_id}-${search.trim()}-${filter}`}
               entries={filtered}
+              gaps={binderGapsEditable ? binderGaps : []}
+              onGapsChange={
+                binderGapsEditable ? changeBinderGaps : undefined
+              }
               onToggleOwned={toggleOwned}
             />
           ) : (

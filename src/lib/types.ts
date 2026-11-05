@@ -32,6 +32,7 @@ export interface CollectionRecord {
   description: string | null;
   cover_image_path: string | null;
   sort_order: number;
+  binder_gaps?: number[];
 }
 
 export interface CollectionProgressSummary {
@@ -44,6 +45,7 @@ export interface CollectionProgressSummary {
   total_entries: number;
   owned_entries: number;
   owned_percent: number;
+  binder_gaps?: number[];
 }
 
 export interface CollectionEntryWithCard {

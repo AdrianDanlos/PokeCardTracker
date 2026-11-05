@@ -4,8 +4,39 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 const POCKETS_PER_PAGE = 9;
 
-function totalPagesForEntryCount(count: number) {
-  return Math.max(1, Math.ceil(count / POCKETS_PER_PAGE));
+export function buildBinderSlots(
+  entries: CollectionEntryWithCard[],
+  gaps: number[],
+): (CollectionEntryWithCard | null)[] {
+  const gapSet = new Set(gaps);
+  const sorted = [...entries].sort((a, b) => a.position - b.position);
+  const slots: (CollectionEntryWithCard | null)[] = [];
+  let cardIdx = 0;
+  let slot = 0;
+  while (cardIdx < sorted.length) {
+    if (gapSet.has(slot)) {
+      slots.push(null);
+      slot++;
+      continue;
+    }
+    slots.push(sorted[cardIdx]!);
+    cardIdx++;
+    slot++;
+  }
+  if (slots.length === 0) {
+    return Array.from({ length: POCKETS_PER_PAGE }, () => null);
+  }
+  const remainder = slots.length % POCKETS_PER_PAGE;
+  if (remainder !== 0) {
+    for (let i = 0; i < POCKETS_PER_PAGE - remainder; i++) {
+      slots.push(null);
+    }
+  }
+  return slots;
+}
+
+function totalPagesForSlotCount(slotCount: number) {
+  return Math.max(1, Math.ceil(slotCount / POCKETS_PER_PAGE));
 }
 
 function spreadLabel(spreadIndex: number, totalPages: number) {
@@ -41,6 +72,36 @@ function buildJumpItems(
     out.push({ kind: "jump", index: idx, label: labelForIndex(idx) });
   }
   return out;
+}
+
+function gapsOnPage(gaps: number[], pageIndex: number): number[] {
+  const start = pageIndex * POCKETS_PER_PAGE;
+  const end = start + POCKETS_PER_PAGE;
+  return gaps.filter((g) => g >= start && g < end);
+}
+
+function lastCardSlotOnPage(
+  slots: (CollectionEntryWithCard | null)[],
+  pageIndex: number,
+): number | null {
+  const start = pageIndex * POCKETS_PER_PAGE;
+  const end = Math.min(start + POCKETS_PER_PAGE, slots.length);
+  for (let i = end - 1; i >= start; i--) {
+    if (slots[i]) return i;
+  }
+  return null;
+}
+
+function addGapAtSlot(gaps: number[], slotIndex: number): number[] {
+  if (gaps.includes(slotIndex)) return gaps;
+  return [...gaps, slotIndex].sort((a, b) => a - b);
+}
+
+function removeLastGapOnPage(gaps: number[], pageIndex: number): number[] {
+  const onPage = gapsOnPage(gaps, pageIndex);
+  if (onPage.length === 0) return gaps;
+  const remove = onPage[onPage.length - 1]!;
+  return gaps.filter((g) => g !== remove);
 }
 
 function useMobileLayout() {
@@ -128,20 +189,20 @@ function BinderPocket({
 
 function BinderPageGrid({
   pageIndex,
-  entries,
+  slots,
   onToggleOwned,
 }: {
   pageIndex: number;
-  entries: CollectionEntryWithCard[];
+  slots: (CollectionEntryWithCard | null)[];
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
 }) {
   const cells = useMemo(() => {
     const start = pageIndex * POCKETS_PER_PAGE;
     return Array.from({ length: POCKETS_PER_PAGE }, (_, cell) => {
       const globalIndex = start + cell;
-      return { globalIndex, entry: entries[globalIndex] ?? null };
+      return { globalIndex, entry: slots[globalIndex] ?? null };
     });
-  }, [pageIndex, entries]);
+  }, [pageIndex, slots]);
 
   return (
     <div className="grid grid-cols-3 gap-2 sm:gap-3">
@@ -164,41 +225,86 @@ function BinderPageGrid({
 function BinderPagePanel({
   pageIndex,
   pageNumberOneBased,
-  entries,
+  slots,
+  gaps,
   onToggleOwned,
+  onGapsChange,
   className = "",
 }: {
   pageIndex: number;
   pageNumberOneBased: number;
-  entries: CollectionEntryWithCard[];
+  slots: (CollectionEntryWithCard | null)[];
+  gaps: number[];
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
+  onGapsChange?: (gaps: number[]) => void;
   className?: string;
 }) {
+  const canEditGaps = onGapsChange != null;
+  const lastCard = canEditGaps ? lastCardSlotOnPage(slots, pageIndex) : null;
+  const pageGaps = canEditGaps ? gapsOnPage(gaps, pageIndex) : [];
+
   return (
     <div className={`flex min-w-0 flex-1 flex-col gap-3 ${className}`}>
       <div className="rounded-xl border border-border bg-surface p-3 sm:p-4">
         <BinderPageGrid
           pageIndex={pageIndex}
-          entries={entries}
+          slots={slots}
           onToggleOwned={onToggleOwned}
         />
       </div>
-      <p className="text-center text-sm text-muted">
-        Page {pageNumberOneBased}
-      </p>
+      <div className="relative flex items-center justify-center">
+        <p className="text-center text-sm text-muted">
+          Page {pageNumberOneBased}
+        </p>
+        {canEditGaps ? (
+          <div className="absolute right-0 flex items-center gap-1">
+            {pageGaps.length > 0 ? (
+              <button
+                type="button"
+                className="btn-ghost flex h-8 w-8 items-center justify-center rounded-full p-0 text-lg leading-none"
+                aria-label="Pull next card back to this page"
+                onClick={() => onGapsChange!(removeLastGapOnPage(gaps, pageIndex))}
+              >
+                −
+              </button>
+            ) : null}
+            {lastCard != null ? (
+              <button
+                type="button"
+                className="btn-ghost flex h-8 w-8 items-center justify-center rounded-full p-0 text-lg leading-none"
+                aria-label="Push last card to next page"
+                onClick={() =>
+                  onGapsChange!(addGapAtSlot(gaps, lastCard))
+                }
+              >
+                +
+              </button>
+            ) : null}
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }
 
 export function BinderView({
   entries,
+  gaps = [],
+  onGapsChange,
   onToggleOwned,
 }: {
   entries: CollectionEntryWithCard[];
+  gaps?: number[];
+  onGapsChange?: (gaps: number[]) => void;
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
 }) {
   const isMobile = useMobileLayout();
-  const totalPages = totalPagesForEntryCount(entries.length);
+  const effectiveGaps = onGapsChange ? gaps : [];
+  const slots = useMemo(
+    () => buildBinderSlots(entries, effectiveGaps),
+    [entries, effectiveGaps],
+  );
+  const totalPages = totalPagesForSlotCount(slots.length);
   const totalSpreads = Math.ceil(totalPages / 2);
   const navUnitCount = isMobile ? totalPages : totalSpreads;
   const maxNavIndex = Math.max(0, navUnitCount - 1);
@@ -281,16 +387,20 @@ export function BinderView({
           <BinderPagePanel
             pageIndex={leftPageIndex}
             pageNumberOneBased={leftPageIndex + 1}
-            entries={entries}
+            slots={slots}
+            gaps={effectiveGaps}
             onToggleOwned={onToggleOwned}
+            onGapsChange={onGapsChange}
           />
           <BinderRings />
           {showRightPage ? (
             <BinderPagePanel
               pageIndex={rightPageIndex}
               pageNumberOneBased={rightPageIndex + 1}
-              entries={entries}
+              slots={slots}
+              gaps={effectiveGaps}
               onToggleOwned={onToggleOwned}
+              onGapsChange={onGapsChange}
             />
           ) : (
             <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
