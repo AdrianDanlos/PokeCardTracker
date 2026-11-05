@@ -70,6 +70,20 @@ body {
   border: 2px dashed var(--missing);
 }
 
+.card-image-dimmed {
+  opacity: 0.25;
+  filter: grayscale(100%);
+}
+
+.binder-pocket-gloss {
+  background: linear-gradient(
+    135deg,
+    rgb(255 255 255 / 0.12) 0%,
+    transparent 45%,
+    transparent 100%
+  );
+}
+
 .chip {
   @apply inline-flex items-center gap-1 rounded-full border border-border px-3 py-1 text-sm text-muted;
 }

@@ -112,6 +112,7 @@ function CardTileBody({
               imagePath={entry.card.image_path}
               imageUrl={entry.card.image_url}
               alt={entry.card.name}
+              dimmed={!owned}
               className="aspect-[3/4] w-full"
             />
           </div>
@@ -136,6 +137,7 @@ function CardTileBody({
             imagePath={entry.card.image_path}
             imageUrl={entry.card.image_url}
             alt={entry.card.name}
+            dimmed={!owned}
             className="mb-3 aspect-[3/4] w-full shrink-0"
           />
           <div className="space-y-0.5">
@@ -176,6 +178,7 @@ function DragOverlayTile({ entry }: { entry: CollectionEntryWithCard }) {
         imagePath={entry.card.image_path}
         imageUrl={entry.card.image_url}
         alt={entry.card.name}
+        dimmed={!owned}
         className="mb-2 aspect-[3/4] w-full"
       />
       <p className="line-clamp-2 text-sm font-medium leading-tight">{entry.card.name}</p>

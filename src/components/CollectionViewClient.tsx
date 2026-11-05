@@ -2,6 +2,7 @@ import {
   AddCardsModal,
   type CatalogSearchRow,
 } from "@/components/AddCardsModal";
+import { BinderView } from "@/components/BinderView";
 import { CardGrid } from "@/components/CardGrid";
 import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { EditCardModal } from "@/components/EditCardModal";
@@ -33,6 +34,27 @@ import { Link } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 type FilterMode = "all" | "owned" | "missing";
+type CollectionViewMode = "grid" | "binder";
+
+const COLLECTION_VIEW_STORAGE_KEY = "pct-collection-view";
+
+function readStoredViewMode(): CollectionViewMode {
+  try {
+    const v = localStorage.getItem(COLLECTION_VIEW_STORAGE_KEY);
+    if (v === "grid" || v === "binder") return v;
+  } catch {
+    /* private mode */
+  }
+  return "grid";
+}
+
+function segmentButtonClass(active: boolean) {
+  return `rounded-full px-3 py-1 text-sm capitalize transition disabled:cursor-not-allowed disabled:opacity-50 ${
+    active
+      ? "bg-accent/15 text-foreground ring-1 ring-accent/40"
+      : "text-muted hover:text-foreground"
+  }`;
+}
 
 export function CollectionViewClient({
   collection: initialCollection,
@@ -77,6 +99,7 @@ export function CollectionViewClient({
     setEntries(initialEntries);
   }, [reloadSeq, initialCollection, initialEntries]);
   const [filter, setFilter] = useState<FilterMode>("all");
+  const [viewMode, setViewMode] = useState<CollectionViewMode>(readStoredViewMode);
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -113,7 +136,17 @@ export function CollectionViewClient({
     return list;
   }, [orderedEntries, filter, search]);
 
-  const sortable = filter === "all" && !search.trim();
+  const sortable =
+    viewMode === "grid" && filter === "all" && !search.trim();
+
+  function setViewModeAndPersist(mode: CollectionViewMode) {
+    setViewMode(mode);
+    try {
+      localStorage.setItem(COLLECTION_VIEW_STORAGE_KEY, mode);
+    } catch {
+      /* ignore */
+    }
+  }
 
   function applyCardDisplayUpdate(
     cardId: string,
@@ -496,18 +529,41 @@ export function CollectionViewClient({
       </header>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {(["all", "owned", "missing"] as const).map((f) => (
-            <button
-              key={f}
-              type="button"
-              className={`chip capitalize disabled:cursor-not-allowed disabled:opacity-50 ${filter === f ? "chip-active" : ""}`}
-              disabled={cardsLoading}
-              onClick={() => setFilter(f)}
-            >
-              {f}
-            </button>
-          ))}
+        <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-full border border-border p-0.5"
+            role="group"
+            aria-label="Collection view"
+          >
+            {(["grid", "binder"] as const).map((mode) => (
+              <button
+                key={mode}
+                type="button"
+                disabled={cardsLoading}
+                className={segmentButtonClass(viewMode === mode)}
+                onClick={() => setViewModeAndPersist(mode)}
+              >
+                {mode}
+              </button>
+            ))}
+          </div>
+          <div
+            className="inline-flex rounded-full border border-border p-0.5"
+            role="group"
+            aria-label="Ownership filter"
+          >
+            {(["all", "owned", "missing"] as const).map((f) => (
+              <button
+                key={f}
+                type="button"
+                disabled={cardsLoading}
+                className={segmentButtonClass(filter === f)}
+                onClick={() => setFilter(f)}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -560,18 +616,26 @@ export function CollectionViewClient({
       ) : cardsError ? (
         <p className="py-10 text-center text-red-400">{cardsError}</p>
       ) : collection ? (
-        <CardGrid
-          entries={filtered}
-          onToggleOwned={toggleOwned}
-          onRemoveEntry={removeEntry}
-          onEditEntry={
-            collection.collection_id.startsWith("demo-")
-              ? undefined
-              : setEditEntry
-          }
-          sortable={sortable}
-          onReorder={sortable ? reorderEntries : undefined}
-        />
+        viewMode === "binder" ? (
+          <BinderView
+            key={`binder-${collection.collection_id}-${filter}-${search.trim()}`}
+            entries={filtered}
+            onToggleOwned={toggleOwned}
+          />
+        ) : (
+          <CardGrid
+            entries={filtered}
+            onToggleOwned={toggleOwned}
+            onRemoveEntry={removeEntry}
+            onEditEntry={
+              collection.collection_id.startsWith("demo-")
+                ? undefined
+                : setEditEntry
+            }
+            sortable={sortable}
+            onReorder={sortable ? reorderEntries : undefined}
+          />
+        )
       ) : null}
 
       {editEntry && (
