@@ -3,7 +3,7 @@ const COLLECTION_LOADING_BG = "/collection-loading-bg.png";
 export function CollectionLoadingScreen() {
   return (
     <div
-      className="fixed inset-0 z-40 flex flex-col items-center justify-center gap-6 bg-background px-4"
+      className="flex min-h-[28rem] flex-col items-center justify-center gap-6 px-4 py-10"
       role="status"
       aria-live="polite"
       aria-busy="true"

@@ -45,6 +45,7 @@ export function CollectionCard({
       )}
       <Link
         to={`/collections/${collection.collection_id}`}
+        state={{ collection }}
         className="group flex h-full flex-col overflow-hidden rounded-xl border border-border bg-surface transition hover:border-accent/40"
       >
       <div className={`relative flex h-36 shrink-0 items-center justify-center bg-gradient-to-br ${gradient}`}>

@@ -28,16 +28,19 @@ export function AlertDialog({
         aria-modal="true"
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-desc"
-        className="w-full max-w-md rounded-xl border border-border bg-surface-elevated p-6 shadow-xl"
+        className="flex max-h-[calc(100dvh-2rem)] w-full max-w-md flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated p-6 shadow-xl"
         onMouseDown={onPanelMouseDown}
       >
-        <h3 id="alert-dialog-title" className="text-lg font-semibold text-foreground">
+        <h3 id="alert-dialog-title" className="shrink-0 text-lg font-semibold text-foreground">
           {title}
         </h3>
-        <p id="alert-dialog-desc" className="mt-2 text-sm leading-relaxed text-muted">
+        <p
+          id="alert-dialog-desc"
+          className="mt-2 max-h-[calc(100dvh-11rem)] min-h-0 overflow-y-auto overscroll-contain whitespace-pre-line text-sm leading-relaxed text-muted"
+        >
           {description}
         </p>
-        <div className="mt-6 flex justify-end">
+        <div className="mt-6 flex shrink-0 justify-end">
           <button type="button" className="btn-primary" onClick={onClose}>
             OK
           </button>

@@ -1,5 +1,6 @@
 import { AddCardsModal, type CatalogSearchRow } from "@/components/AddCardsModal";
 import { CardGrid } from "@/components/CardGrid";
+import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { EditCardModal } from "@/components/EditCardModal";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
@@ -27,14 +28,19 @@ type FilterMode = "all" | "owned" | "missing";
 export function CollectionViewClient({
   collection: initialCollection,
   initialEntries,
+  cardsLoading = false,
+  cardsError = null,
   reloadSeq = 0,
   onReload,
   onCollectionDeleted,
   onCollectionUpdated,
   initialSearch = "",
 }: {
-  collection: CollectionProgressSummary;
+  collection: CollectionProgressSummary | null;
   initialEntries: CollectionEntryWithCard[];
+  /** True while card entries are still being fetched. Page chrome stays visible. */
+  cardsLoading?: boolean;
+  cardsError?: string | null;
   /** Bumps after an explicit refetch so we do not overwrite local optimistic UI on background query updates. */
   reloadSeq?: number;
   onReload: () => void | Promise<void>;
@@ -44,6 +50,17 @@ export function CollectionViewClient({
 }) {
   const [collection, setCollection] = useState(initialCollection);
   const [entries, setEntries] = useState(initialEntries);
+  const [seenCardsLoading, setSeenCardsLoading] = useState(cardsLoading);
+  if (seenCardsLoading !== cardsLoading) {
+    setSeenCardsLoading(cardsLoading);
+    if (!cardsLoading && initialCollection) {
+      setCollection(initialCollection);
+      setEntries(initialEntries);
+    }
+  }
+  if (!collection && initialCollection) {
+    setCollection(initialCollection);
+  }
 
   useEffect(() => {
     if (reloadSeq === 0) return;
@@ -96,7 +113,7 @@ export function CollectionViewClient({
     const prev = entries;
     setEntries(reordered);
 
-    if (collection.collection_id.startsWith("demo-")) return;
+    if (!collection || collection.collection_id.startsWith("demo-")) return;
 
     const updates = reordered
       .filter((e) => prev.find((p) => p.id === e.id)?.position !== e.position)
@@ -108,8 +125,9 @@ export function CollectionViewClient({
     });
   }
 
-  const owned = collection.owned_entries;
-  const total = collection.total_entries;
+  const headerCollection = collection ?? initialCollection;
+  const owned = headerCollection?.owned_entries ?? 0;
+  const total = headerCollection?.total_entries ?? 0;
   const pct = total ? Math.round((100 * owned) / total) : 0;
 
   function applyOwnedToEntries(cardId: string, owned: boolean, language: string | null) {
@@ -118,11 +136,14 @@ export function CollectionViewClient({
         e.card_id === cardId ? { ...e, owned, owned_language: language } : e,
       );
       const ownedCount = next.filter((e) => e.owned).length;
-      setCollection((c) => ({
-        ...c,
-        owned_entries: ownedCount,
-        owned_percent: c.total_entries ? (100 * ownedCount) / c.total_entries : 0,
-      }));
+      setCollection((c) => {
+        if (!c) return c;
+        return {
+          ...c,
+          owned_entries: ownedCount,
+          owned_percent: c.total_entries ? (100 * ownedCount) / c.total_entries : 0,
+        };
+      });
       return next;
     });
   }
@@ -132,24 +153,29 @@ export function CollectionViewClient({
       const next = prev.filter((e) => e.id !== entryId);
       const ownedCount = next.filter((e) => e.owned).length;
       const totalCount = next.length;
-      setCollection((c) => ({
-        ...c,
-        total_entries: totalCount,
-        owned_entries: ownedCount,
-        owned_percent: totalCount ? (100 * ownedCount) / totalCount : 0,
-      }));
+      setCollection((c) => {
+        if (!c) return c;
+        return {
+          ...c,
+          total_entries: totalCount,
+          owned_entries: ownedCount,
+          owned_percent: totalCount ? (100 * ownedCount) / totalCount : 0,
+        };
+      });
       return next;
     });
   }
 
   function applyOptimisticCatalogAdd(row: CatalogSearchRow) {
+    if (!collection) return;
+    const collectionId = collection.collection_id;
     setEntries((prev) => {
       if (prev.some((e) => e.card.external_id === row.externalId)) return prev;
       const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
       const tempKey = `optimistic-${row.externalId}`;
       const entry: CollectionEntryWithCard = {
         id: tempKey,
-        collection_id: collection.collection_id,
+        collection_id: collectionId,
         card_id: tempKey,
         position,
         owned: false,
@@ -179,11 +205,14 @@ export function CollectionViewClient({
         },
       };
       const next = [...prev, entry];
-      setCollection((c) => ({
-        ...c,
-        total_entries: next.length,
-        owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
-      }));
+      setCollection((c) => {
+        if (!c) return c;
+        return {
+          ...c,
+          total_entries: next.length,
+          owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+        };
+      });
       return next;
     });
   }
@@ -194,12 +223,14 @@ export function CollectionViewClient({
   }
 
   function applyOptimisticJsonImportPreview(preview: JsonSetImportCardPreview) {
+    if (!collection) return;
+    const collectionId = collection.collection_id;
     setEntries((prev) => {
       if (prev.some((e) => e.id === preview.tempKey)) return prev;
       const position = prev.length ? Math.max(...prev.map((e) => e.position)) + 1 : 0;
       const entry: CollectionEntryWithCard = {
         id: preview.tempKey,
-        collection_id: collection.collection_id,
+        collection_id: collectionId,
         card_id: preview.tempKey,
         position,
         owned: false,
@@ -227,11 +258,14 @@ export function CollectionViewClient({
         },
       };
       const next = [...prev, entry];
-      setCollection((c) => ({
-        ...c,
-        total_entries: next.length,
-        owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
-      }));
+      setCollection((c) => {
+        if (!c) return c;
+        return {
+          ...c,
+          total_entries: next.length,
+          owned_percent: c.total_entries ? (100 * c.owned_entries) / next.length : 0,
+        };
+      });
       return next;
     });
   }
@@ -287,7 +321,7 @@ export function CollectionViewClient({
   }
 
   async function runJsonImport(groups: JsonSetImportGroup[]) {
-    if (collection.collection_id.startsWith("demo-")) return;
+    if (!collection || collection.collection_id.startsWith("demo-")) return;
     jsonImportOptimisticKeysRef.current = [];
     setJsonImportError(null);
     setJsonImportUnresolved(null);
@@ -324,7 +358,7 @@ export function CollectionViewClient({
   function removeEntry(entry: CollectionEntryWithCard) {
     applyRemoveEntry(entry.id);
 
-    if (collection.collection_id.startsWith("demo-")) return;
+    if (!collection || collection.collection_id.startsWith("demo-")) return;
 
     void removeEntryFromCollection(entry.id).catch(() => {
       onReload();
@@ -339,7 +373,7 @@ export function CollectionViewClient({
 
     applyOwnedToEntries(entry.card_id, nextOwned, nextOwned ? language : null);
 
-    if (collection.collection_id.startsWith("demo-")) return;
+    if (!collection || collection.collection_id.startsWith("demo-")) return;
 
     void setCardOwned(entry.card_id, nextOwned, language).catch(() => {
       applyOwnedToEntries(entry.card_id, prevOwned, prevLanguage);
@@ -355,22 +389,37 @@ export function CollectionViewClient({
       </div>
 
       <header className="space-y-3">
-        <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-          <h1 className="text-3xl font-bold">{collection.name}</h1>
-          <p className="text-sm text-muted">
-            {owned} / {total} owned · {pct}%
-          </p>
-        </div>
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
-          <p className="min-w-0 flex-1 whitespace-pre-line text-muted">
-            {collection.description
-              ? clampCollectionDescription(collection.description.trim())
-              : "\u00A0"}
-          </p>
-          <div className="w-full shrink-0 sm:max-w-md">
-            <ProgressBar percent={pct} />
-          </div>
-        </div>
+        {headerCollection ? (
+          <>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h1 className="text-3xl font-bold">{headerCollection.name}</h1>
+              <p className="text-sm text-muted">
+                {owned} / {total} owned · {pct}%
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+              <p className="min-w-0 flex-1 whitespace-pre-line text-muted">
+                {headerCollection.description
+                  ? clampCollectionDescription(headerCollection.description.trim())
+                  : "\u00A0"}
+              </p>
+              <div className="w-full shrink-0 sm:max-w-md">
+                <ProgressBar percent={pct} />
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <div className="h-9 w-56 max-w-full animate-pulse rounded bg-surface-elevated" />
+              <div className="h-4 w-36 animate-pulse rounded bg-surface-elevated" />
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:gap-6">
+              <div className="h-5 min-w-0 flex-1 animate-pulse rounded bg-surface-elevated" />
+              <div className="h-1.5 w-full shrink-0 animate-pulse rounded-full bg-surface-elevated sm:max-w-md" />
+            </div>
+          </>
+        )}
       </header>
 
       <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
@@ -379,7 +428,8 @@ export function CollectionViewClient({
             <button
               key={f}
               type="button"
-              className={`chip capitalize ${filter === f ? "chip-active" : ""}`}
+              className={`chip capitalize disabled:cursor-not-allowed disabled:opacity-50 ${filter === f ? "chip-active" : ""}`}
+              disabled={cardsLoading}
               onClick={() => setFilter(f)}
             >
               {f}
@@ -387,10 +437,20 @@ export function CollectionViewClient({
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-ghost" onClick={() => setShowSettings(true)}>
+          <button
+            type="button"
+            className="btn-ghost disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={cardsLoading || !headerCollection}
+            onClick={() => setShowSettings(true)}
+          >
             Settings
           </button>
-          <button type="button" className="btn-primary" onClick={() => setShowAdd(true)}>
+          <button
+            type="button"
+            className="btn-primary disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={cardsLoading || !headerCollection}
+            onClick={() => setShowAdd(true)}
+          >
             Add cards
           </button>
         </div>
@@ -399,30 +459,37 @@ export function CollectionViewClient({
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="min-w-[12rem] max-w-md flex-1">
           <input
-            className="input w-full"
+            className="input w-full disabled:cursor-not-allowed disabled:opacity-50"
             placeholder="Search name or set"
             value={search}
+            disabled={cardsLoading}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && onReload()}
           />
         </div>
-        {search.trim() ? (
+        {search.trim() && !cardsLoading ? (
           <p className="text-sm text-muted tabular-nums">
             {filtered.length} {filtered.length === 1 ? "result" : "results"}
           </p>
         ) : null}
       </div>
 
-      <CardGrid
-        entries={filtered}
-        onToggleOwned={toggleOwned}
-        onRemoveEntry={removeEntry}
-        onEditEntry={
-          collection.collection_id.startsWith("demo-") ? undefined : setEditEntry
-        }
-        sortable={sortable}
-        onReorder={sortable ? reorderEntries : undefined}
-      />
+      {cardsLoading ? (
+        <CollectionLoadingScreen />
+      ) : cardsError ? (
+        <p className="py-10 text-center text-red-400">{cardsError}</p>
+      ) : collection ? (
+        <CardGrid
+          entries={filtered}
+          onToggleOwned={toggleOwned}
+          onRemoveEntry={removeEntry}
+          onEditEntry={
+            collection.collection_id.startsWith("demo-") ? undefined : setEditEntry
+          }
+          sortable={sortable}
+          onReorder={sortable ? reorderEntries : undefined}
+        />
+      ) : null}
 
       {editEntry && (
         <EditCardModal
@@ -444,7 +511,7 @@ export function CollectionViewClient({
           {jsonImportProgress}
         </div>
       )}
-      {showAdd && (
+      {showAdd && collection && (
         <AddCardsModal
           collectionId={collection.collection_id}
           onClose={() => setShowAdd(false)}
@@ -455,7 +522,7 @@ export function CollectionViewClient({
           onCardAddCommitted={commitOptimisticCatalogAdd}
         />
       )}
-      {showSettings && (
+      {showSettings && collection && (
         <CollectionSettingsModal
           collection={collection}
           onClose={() => setShowSettings(false)}
