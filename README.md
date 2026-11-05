@@ -24,7 +24,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). Dev signs in as an anonymous guest. Production uses a magic link (`/login`). Magic-link redirects are in [DEPLOYMENT.md](./DEPLOYMENT.md).
+Open [http://localhost:5173](http://localhost:5173). By default, local dev uses the same magic link as production (`/login`). Optional: set `VITE_DEV_GUEST=true` in `.env.local` to auto sign-in as an anonymous guest. Magic-link redirects are in [DEPLOYMENT.md](./DEPLOYMENT.md).
 
 ## Scripts
 

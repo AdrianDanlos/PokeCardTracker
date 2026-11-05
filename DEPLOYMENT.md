@@ -28,7 +28,7 @@ If `http://localhost:5173/**` is missing, Supabase ignores `emailRedirectTo` and
 
 **Authentication → Providers → Anonymous sign-ins:** enabled.
 
-`npm run dev` calls `signInAnonymously()` when there is no session (`src/lib/auth/devGuest.ts`). Those users are real rows in this same project. Production does not auto-create an anonymous session; it uses the magic link.
+`npm run dev` calls `signInAnonymously()` only when `VITE_DEV_GUEST=true` and there is no session (`src/lib/auth/devGuest.ts`). Those guest users are real rows in this same project. Without that flag, local dev uses the magic link like production.
 
 `supabase/config.toml` is the local CLI template (`enable_anonymous_sign_ins = false`). The running app uses the hosted project, not that file.
 
