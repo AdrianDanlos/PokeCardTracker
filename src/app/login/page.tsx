@@ -1,7 +1,6 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
-import Link from "next/link";
 import { useState } from "react";
 
 export default function LoginPage() {
@@ -24,9 +23,6 @@ export default function LoginPage() {
 
   return (
     <div className="mx-auto max-w-md space-y-6 pt-12">
-      <Link href="/" className="text-sm text-muted hover:text-accent">
-        ← Back
-      </Link>
       <h1 className="text-2xl font-bold">Sign in</h1>
       <p className="text-sm text-muted">We&apos;ll email you a magic link (single-user app).</p>
       {sent ? (
