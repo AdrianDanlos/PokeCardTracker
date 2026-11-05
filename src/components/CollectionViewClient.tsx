@@ -2,6 +2,7 @@ import { AddCardsModal } from "@/components/AddCardsModal";
 import { CardGrid } from "@/components/CardGrid";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
+import { removeEntryFromCollection } from "@/lib/api/collection-entries";
 import { setCardOwned } from "@/lib/api/owned";
 import { downloadTextFile, exportCollectionOrderJson } from "@/lib/collection-order-json";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
@@ -62,6 +63,31 @@ export function CollectionViewClient({
         owned_percent: c.total_entries ? (100 * ownedCount) / c.total_entries : 0,
       }));
       return next;
+    });
+  }
+
+  function applyRemoveEntry(entryId: string) {
+    setEntries((prev) => {
+      const next = prev.filter((e) => e.id !== entryId);
+      const ownedCount = next.filter((e) => e.owned).length;
+      const totalCount = next.length;
+      setCollection((c) => ({
+        ...c,
+        total_entries: totalCount,
+        owned_entries: ownedCount,
+        owned_percent: totalCount ? (100 * ownedCount) / totalCount : 0,
+      }));
+      return next;
+    });
+  }
+
+  function removeEntry(entry: CollectionEntryWithCard) {
+    applyRemoveEntry(entry.id);
+
+    if (collection.collection_id.startsWith("demo-")) return;
+
+    void removeEntryFromCollection(entry.id).catch(() => {
+      onReload();
     });
   }
 
@@ -146,7 +172,7 @@ export function CollectionViewClient({
         />
       </div>
 
-      <CardGrid entries={filtered} onToggleOwned={toggleOwned} />
+      <CardGrid entries={filtered} onToggleOwned={toggleOwned} onRemoveEntry={removeEntry} />
 
       {showAdd && (
         <AddCardsModal

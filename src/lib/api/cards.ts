@@ -1,8 +1,33 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdapter } from "@/lib/adapters";
 import { suggestTcgdexCards, suggestTcgdexSets } from "@/lib/adapters/tcgdex";
 import { cacheRemoteImage, upsertCardFromSearch, upsertSetFromSearch } from "@/lib/adapters/cache";
 import { createClient } from "@/lib/supabase/client";
 import { DEFAULT_CARD_LANGUAGE, type CardSourceId } from "@/lib/types";
+
+/** Same catalog fetch + DB upsert + image cache path as single-card API add. */
+async function syncCatalogCardFromApi(
+  supabase: SupabaseClient,
+  userId: string,
+  params: { source: CardSourceId; externalId: string; language?: string },
+) {
+  const adapter = getAdapter(params.source, params.language);
+  const result = await adapter.getCard(params.externalId);
+  if (!result) throw new Error(`Card not found: ${params.externalId}`);
+
+  const setId = await upsertSetFromSearch(
+    supabase,
+    params.source,
+    result.setExternalId,
+    result.setName,
+    result.language,
+  );
+  const card = await upsertCardFromSearch(supabase, params.source, result, setId);
+  if (result.imageUrl) {
+    await cacheRemoteImage(supabase, userId, card.id as string, result.imageUrl);
+  }
+  return card.id as string;
+}
 
 export async function suggestCatalogSets(params: { q: string; language?: string }) {
   return suggestTcgdexSets(params.language, params.q);
@@ -37,21 +62,7 @@ export async function addCardToCollection(params: {
   const { data: userData } = await supabase.auth.getUser();
   if (!userData.user) throw new Error("Unauthorized");
 
-  const adapter = getAdapter(params.source, params.language);
-  const result = await adapter.getCard(params.externalId);
-  if (!result) throw new Error("Card not found");
-
-  const setId = await upsertSetFromSearch(
-    supabase,
-    params.source,
-    result.setExternalId,
-    result.setName,
-    result.language,
-  );
-  const card = await upsertCardFromSearch(supabase, params.source, result, setId);
-  if (result.imageUrl) {
-    await cacheRemoteImage(supabase, userData.user.id, card.id as string, result.imageUrl);
-  }
+  const cardId = await syncCatalogCardFromApi(supabase, userData.user.id, params);
 
   const { data: maxPos } = await supabase
     .from("collection_entries")
@@ -64,13 +75,13 @@ export async function addCardToCollection(params: {
   const { error } = await supabase.from("collection_entries").upsert(
     {
       collection_id: params.collectionId,
-      card_id: card.id,
+      card_id: cardId,
       position: (maxPos?.position ?? -1) + 1,
     },
     { onConflict: "collection_id,card_id", ignoreDuplicates: true },
   );
   if (error) throw new Error(error.message);
-  return card.id as string;
+  return cardId;
 }
 
 export async function bulkAddCardsToCollection(params: {
@@ -96,7 +107,7 @@ export async function importSetToCollection(
     collectionId: string;
     language?: string;
   },
-  onProgress?: (done: number, total: number, phase: "entries" | "photos") => void,
+  onProgress?: (done: number, total: number, phase: "import") => void,
 ) {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -111,14 +122,6 @@ export async function importSetToCollection(
     throw new Error("This set has no cards to import (empty or unavailable in this language).");
   }
 
-  const setId = await upsertSetFromSearch(
-    supabase,
-    params.source,
-    imported.setExternalId,
-    imported.setName,
-    params.language ?? imported.cards[0]?.language ?? DEFAULT_CARD_LANGUAGE,
-  );
-
   let position = 0;
   const { data: maxPos } = await supabase
     .from("collection_entries")
@@ -130,32 +133,22 @@ export async function importSetToCollection(
   position = (maxPos?.position ?? -1) + 1;
 
   const total = imported.cards.length;
-  let done = 0;
-  onProgress?.(0, total, "entries");
+  onProgress?.(0, total, "import");
 
-  const cardsForPhotos: { id: string; imageUrl: string | null }[] = [];
-
-  for (const result of imported.cards) {
-    const card = await upsertCardFromSearch(supabase, params.source, result, setId);
-    cardsForPhotos.push({ id: card.id as string, imageUrl: result.imageUrl });
+  for (let i = 0; i < imported.cards.length; i++) {
+    const externalId = imported.cards[i].externalId;
+    const cardId = await syncCatalogCardFromApi(supabase, userData.user.id, {
+      source: params.source,
+      externalId,
+      language: params.language,
+    });
     const { error: entryErr } = await supabase.from("collection_entries").upsert(
-      { collection_id: params.collectionId, card_id: card.id, position },
+      { collection_id: params.collectionId, card_id: cardId, position },
       { onConflict: "collection_id,card_id", ignoreDuplicates: true },
     );
     if (entryErr) throw new Error(entryErr.message);
     position += 1;
-    done += 1;
-    onProgress?.(done, total, "entries");
-  }
-
-  done = 0;
-  onProgress?.(0, total, "photos");
-  for (const { id, imageUrl } of cardsForPhotos) {
-    if (imageUrl) {
-      await cacheRemoteImage(supabase, userData.user.id, id, imageUrl);
-    }
-    done += 1;
-    onProgress?.(done, total, "photos");
+    onProgress?.(i + 1, total, "import");
   }
 }
 

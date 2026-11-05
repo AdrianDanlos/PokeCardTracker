@@ -1,14 +1,20 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CollectionCard } from "@/components/CollectionCard";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
   initialCollections,
+  onCollectionCreated,
 }: {
   initialCollections: CollectionProgressSummary[];
+  onCollectionCreated: (col: CollectionProgressSummary) => void;
 }) {
   const [collections, setCollections] = useState(initialCollections);
+
+  useEffect(() => {
+    setCollections(initialCollections);
+  }, [initialCollections]);
   const [search, setSearch] = useState("");
   const [showNew, setShowNew] = useState(false);
 
@@ -58,7 +64,7 @@ export function DashboardClient({
         <NewCollectionModal
           onClose={() => setShowNew(false)}
           onCreated={(col) => {
-            setCollections((prev) => [...prev, col]);
+            onCollectionCreated(col);
             setShowNew(false);
           }}
         />

@@ -14,8 +14,16 @@ function appLanguage(language?: string): string {
 /** TCGdex image bases: https://tcgdex.dev — append quality suffix. */
 export function tcgdxImageUrl(image: string | null | undefined, quality: "high" | "low" = "high") {
   if (!image) return null;
-  const base = image.startsWith("http") ? image.replace(/\/$/, "") : `https://assets.tcgdex.net/${image}`;
+  let base = image.startsWith("http") ? image.replace(/\/$/, "") : `https://assets.tcgdex.net/${image}`;
+  if (base.endsWith("/high.webp") || base.endsWith("/low.webp")) {
+    return base;
+  }
   return `${base}/${quality}.webp`;
+}
+
+/** Base TCGdex asset URL suitable for fetch + storage (no /high.webp suffix). */
+export function tcgdxImageBaseUrl(imageUrl: string): string {
+  return imageUrl.replace(/\/(high|low)\.webp$/i, "").replace(/\/$/, "");
 }
 
 function mapBrief(item: Record<string, unknown>, language: string): CardSearchResult {

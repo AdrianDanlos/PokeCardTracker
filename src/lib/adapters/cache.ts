@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { tcgdxImageBaseUrl } from "@/lib/adapters/tcgdex";
 import type { CardSearchResult, CardSourceId } from "@/lib/types";
 
 export async function upsertSetFromSearch(
@@ -63,8 +64,9 @@ export async function cacheRemoteImage(
 ): Promise<string | null> {
   try {
     let fetchUrl = imageUrl;
-    if (fetchUrl.includes("tcgdex.net") && !fetchUrl.endsWith(".webp")) {
-      fetchUrl = `${fetchUrl.replace(/\/$/, "")}/high.webp`;
+    if (fetchUrl.includes("tcgdex.net")) {
+      const base = tcgdxImageBaseUrl(fetchUrl);
+      fetchUrl = `${base}/high.webp`;
     }
     const res = await fetch(fetchUrl);
     if (!res.ok) return null;

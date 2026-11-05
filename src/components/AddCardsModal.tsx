@@ -149,12 +149,8 @@ export function AddCardsModal({
           collectionId,
           language: tcgLanguage,
         },
-        (done, total, phase) => {
-          setImportProgress(
-            phase === "photos"
-              ? `Saving photos… ${done}/${total}`
-              : `Adding cards… ${done}/${total}`,
-          );
+        (done, total) => {
+          setImportProgress(`Importing cards & photos… ${done}/${total}`);
         },
       );
       onAdded();
@@ -338,13 +334,14 @@ export function AddCardsModal({
                 options={setSuggestions}
                 loading={setSuggestLoading}
                 minChars={1}
+                dropDirection="inline"
                 placeholder="Set name or ID (e.g. gym, gym2)"
                 disabled={loading}
                 onSelect={(opt) => setSetId(opt.id)}
               />
               <button
                 type="button"
-                className="btn-primary relative z-20 w-full"
+                className="btn-primary w-full"
                 onClick={() => void importSet()}
                 disabled={loading || !setId.trim()}
               >

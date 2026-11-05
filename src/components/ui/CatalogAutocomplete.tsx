@@ -15,6 +15,7 @@ export function CatalogAutocomplete({
   onSelect,
   minChars = 1,
   disabled,
+  dropDirection = "down",
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -24,6 +25,8 @@ export function CatalogAutocomplete({
   onSelect: (option: CatalogAutocompleteOption) => void;
   minChars?: number;
   disabled?: boolean;
+  /** inline = list in layout (pushes content below); up/down = floating overlay */
+  dropDirection?: "down" | "up" | "inline";
 }) {
   const listId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
@@ -70,8 +73,45 @@ export function CatalogAutocomplete({
     }
   }
 
+  const listPanel = showPanel ? (
+    <ul
+      id={listId}
+      role="listbox"
+      className={
+        dropDirection === "inline"
+          ? "mt-2 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
+          : dropDirection === "up"
+            ? "absolute bottom-full z-30 mb-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
+            : "absolute z-30 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
+      }
+    >
+      {loading && options.length === 0 && (
+        <li className="px-3 py-2 text-sm text-muted">Loading…</li>
+      )}
+      {options.map((opt, index) => (
+        <li key={opt.id} role="option" aria-selected={index === activeIndex}>
+          <button
+            type="button"
+            className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-surface ${
+              index === activeIndex ? "bg-surface" : ""
+            }`}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => pick(opt)}
+            onMouseEnter={() => setActiveIndex(index)}
+          >
+            <span className="truncate">{opt.label}</span>
+            {opt.detail && <span className="truncate text-xs text-muted">{opt.detail}</span>}
+          </button>
+        </li>
+      ))}
+    </ul>
+  ) : null;
+
   return (
-    <div ref={rootRef} className="relative min-w-0 flex-1">
+    <div
+      ref={rootRef}
+      className={`min-w-0 flex-1 ${dropDirection === "inline" ? "w-full" : "relative"}`}
+    >
       <input
         className="input w-full"
         placeholder={placeholder}
@@ -92,33 +132,7 @@ export function CatalogAutocomplete({
         }}
         onKeyDown={onKeyDown}
       />
-      {showPanel && (
-        <ul
-          id={listId}
-          role="listbox"
-          className="absolute z-10 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-border bg-surface-elevated py-1 shadow-lg"
-        >
-          {loading && options.length === 0 && (
-            <li className="px-3 py-2 text-sm text-muted">Loading…</li>
-          )}
-          {options.map((opt, index) => (
-            <li key={opt.id} role="option" aria-selected={index === activeIndex}>
-              <button
-                type="button"
-                className={`flex w-full flex-col px-3 py-2 text-left text-sm hover:bg-surface ${
-                  index === activeIndex ? "bg-surface" : ""
-                }`}
-                onMouseDown={(e) => e.preventDefault()}
-                onClick={() => pick(opt)}
-                onMouseEnter={() => setActiveIndex(index)}
-              >
-                <span className="truncate">{opt.label}</span>
-                {opt.detail && <span className="truncate text-xs text-muted">{opt.detail}</span>}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+      {listPanel}
     </div>
   );
 }
