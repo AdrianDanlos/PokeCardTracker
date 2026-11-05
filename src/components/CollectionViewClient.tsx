@@ -31,7 +31,7 @@ import {
   type CollectionProgressSummary,
 } from "@/lib/types";
 import { Link } from "react-router-dom";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 type FilterMode = "all" | "owned" | "missing";
 type CollectionViewMode = "grid" | "binder";
@@ -99,7 +99,8 @@ export function CollectionViewClient({
     setEntries(initialEntries);
   }, [reloadSeq, initialCollection, initialEntries]);
   const [filter, setFilter] = useState<FilterMode>("all");
-  const [viewMode, setViewMode] = useState<CollectionViewMode>(readStoredViewMode);
+  const [viewMode, setViewMode] =
+    useState<CollectionViewMode>(readStoredViewMode);
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -122,6 +123,7 @@ export function CollectionViewClient({
     string | null
   >(null);
   const jsonImportOptimisticKeysRef = useRef<string[]>([]);
+  const scrollYToRestoreRef = useRef<number | null>(null);
   const orderedEntries = useMemo(
     () => [...entries].sort((a, b) => a.position - b.position),
     [entries],
@@ -136,10 +138,10 @@ export function CollectionViewClient({
     return list;
   }, [orderedEntries, filter, search]);
 
-  const sortable =
-    viewMode === "grid" && filter === "all" && !search.trim();
+  const sortable = viewMode === "grid" && filter === "all" && !search.trim();
 
   function setViewModeAndPersist(mode: CollectionViewMode) {
+    scrollYToRestoreRef.current = window.scrollY;
     setViewMode(mode);
     try {
       localStorage.setItem(COLLECTION_VIEW_STORAGE_KEY, mode);
@@ -147,6 +149,26 @@ export function CollectionViewClient({
       /* ignore */
     }
   }
+
+  function selectFilter(next: FilterMode) {
+    scrollYToRestoreRef.current = window.scrollY;
+    setFilter(next);
+  }
+
+  useLayoutEffect(() => {
+    const saved = scrollYToRestoreRef.current;
+    if (saved === null) return;
+    scrollYToRestoreRef.current = null;
+    const applyRestore = () => {
+      const maxY = Math.max(
+        0,
+        document.documentElement.scrollHeight - window.innerHeight,
+      );
+      window.scrollTo(0, Math.min(saved, maxY));
+    };
+    applyRestore();
+    requestAnimationFrame(applyRestore);
+  }, [filter, viewMode, filtered.length]);
 
   function applyCardDisplayUpdate(
     cardId: string,
@@ -182,7 +204,9 @@ export function CollectionViewClient({
   }
 
   const headerCollection = collection ?? initialCollection;
-  const hasOptimisticEntries = entries.some((e) => e.id.startsWith("optimistic-"));
+  const hasOptimisticEntries = entries.some((e) =>
+    e.id.startsWith("optimistic-"),
+  );
   const canReorderWithAi =
     !cardsLoading &&
     !!headerCollection &&
@@ -541,6 +565,7 @@ export function CollectionViewClient({
                 type="button"
                 disabled={cardsLoading}
                 className={segmentButtonClass(viewMode === mode)}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => setViewModeAndPersist(mode)}
               >
                 {mode}
@@ -558,7 +583,8 @@ export function CollectionViewClient({
                 type="button"
                 disabled={cardsLoading}
                 className={segmentButtonClass(filter === f)}
-                onClick={() => setFilter(f)}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => selectFilter(f)}
               >
                 {f}
               </button>
@@ -611,32 +637,34 @@ export function CollectionViewClient({
         ) : null}
       </div>
 
-      {cardsLoading ? (
-        <CollectionLoadingScreen />
-      ) : cardsError ? (
-        <p className="py-10 text-center text-red-400">{cardsError}</p>
-      ) : collection ? (
-        viewMode === "binder" ? (
-          <BinderView
-            key={`binder-${collection.collection_id}-${filter}-${search.trim()}`}
-            entries={filtered}
-            onToggleOwned={toggleOwned}
-          />
-        ) : (
-          <CardGrid
-            entries={filtered}
-            onToggleOwned={toggleOwned}
-            onRemoveEntry={removeEntry}
-            onEditEntry={
-              collection.collection_id.startsWith("demo-")
-                ? undefined
-                : setEditEntry
-            }
-            sortable={sortable}
-            onReorder={sortable ? reorderEntries : undefined}
-          />
-        )
-      ) : null}
+      <div className="min-h-[calc(100dvh-14rem)]">
+        {cardsLoading ? (
+          <CollectionLoadingScreen />
+        ) : cardsError ? (
+          <p className="py-10 text-center text-red-400">{cardsError}</p>
+        ) : collection ? (
+          viewMode === "binder" ? (
+            <BinderView
+              key={`binder-${collection.collection_id}-${search.trim()}`}
+              entries={filtered}
+              onToggleOwned={toggleOwned}
+            />
+          ) : (
+            <CardGrid
+              entries={filtered}
+              onToggleOwned={toggleOwned}
+              onRemoveEntry={removeEntry}
+              onEditEntry={
+                collection.collection_id.startsWith("demo-")
+                  ? undefined
+                  : setEditEntry
+              }
+              sortable={sortable}
+              onReorder={sortable ? reorderEntries : undefined}
+            />
+          )
+        ) : null}
+      </div>
 
       {editEntry && (
         <EditCardModal

@@ -78,7 +78,9 @@ function EmptyPocket() {
   return (
     <div className="flex flex-col gap-1.5">
       <div className="relative aspect-[3/4] w-full rounded-md border border-dashed border-border/60 bg-black/10" />
-      <span className="text-center text-xs text-transparent select-none">—</span>
+      <span className="text-center text-xs text-transparent select-none">
+        —
+      </span>
     </div>
   );
 }
@@ -181,7 +183,9 @@ function BinderPagePanel({
           onToggleOwned={onToggleOwned}
         />
       </div>
-      <p className="text-center text-sm text-muted">Page {pageNumberOneBased}</p>
+      <p className="text-center text-sm text-muted">
+        Page {pageNumberOneBased}
+      </p>
     </div>
   );
 }
@@ -249,27 +253,27 @@ export function BinderView({
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-center gap-2 sm:justify-start">
-          <button
-            type="button"
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
-            disabled={navIndex <= 0}
-            onClick={goPrev}
-            aria-label="Previous page"
-          >
-            ←
-          </button>
-          <span className="min-w-[10rem] text-center text-sm font-medium tabular-nums sm:text-left">
-            {navTitle}
-          </span>
-          <button
-            type="button"
-            className="btn-ghost px-3 py-2 disabled:opacity-40"
-            disabled={navIndex >= maxNavIndex}
-            onClick={goNext}
-            aria-label="Next page"
-          >
-            →
-          </button>
+        <button
+          type="button"
+          className="btn-ghost px-3 py-2 disabled:opacity-40"
+          disabled={navIndex <= 0}
+          onClick={goPrev}
+          aria-label="Previous page"
+        >
+          ←
+        </button>
+        <span className="min-w-[10rem] text-center text-sm font-medium tabular-nums sm:text-left">
+          {navTitle}
+        </span>
+        <button
+          type="button"
+          className="btn-ghost px-3 py-2 disabled:opacity-40"
+          disabled={navIndex >= maxNavIndex}
+          onClick={goNext}
+          aria-label="Next page"
+        >
+          →
+        </button>
       </div>
 
       <div className="rounded-2xl border border-border bg-surface-elevated p-3 sm:p-5">
