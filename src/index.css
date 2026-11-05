@@ -25,6 +25,16 @@
   --font-sans: var(--font-sora);
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  html {
+    overflow-y: scroll;
+  }
+}
+
 body {
   margin: 0;
   background: var(--background);

@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import {
   addCardToCollection,
   createManualCard,
-  importSetToCollection,
+  importJsonSetToCollection,
   suggestCatalogCards,
-  suggestCatalogSets,
+  type JsonSetImportUnresolved,
 } from "@/lib/api/cards";
+import { parseJsonSetImport } from "@/lib/json-set-import";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
 import {
@@ -46,9 +47,9 @@ export function AddCardsModal({
     ids: { cardId: string; entryId?: string; imagePath?: string | null },
   ) => void;
 }) {
-  const [tab, setTab] = useState<"search" | "set" | "manual">("set");
+  const [tab, setTab] = useState<"search" | "json" | "manual">("json");
   const [query, setQuery] = useState("");
-  const [setId, setSetId] = useState("");
+  const [jsonText, setJsonText] = useState("");
   const [cardRowsById, setCardRowsById] = useState<Map<string, CatalogSearchRow>>(() => new Map());
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
@@ -59,14 +60,15 @@ export function AddCardsModal({
   const [error, setError] = useState<string | null>(null);
   const [addErrorDialog, setAddErrorDialog] = useState<string | null>(null);
   const [cardSuggestLoading, setCardSuggestLoading] = useState(false);
-  const [setSuggestLoading, setSetSuggestLoading] = useState(false);
   const [cardSuggestions, setCardSuggestions] = useState<CatalogAutocompleteOption[]>([]);
-  const [setSuggestions, setSetSuggestions] = useState<CatalogAutocompleteOption[]>([]);
   const [importProgress, setImportProgress] = useState<string | null>(null);
+  const [importSummary, setImportSummary] = useState<{
+    imported: number;
+    unresolved: JsonSetImportUnresolved[];
+  } | null>(null);
   const [manualProgress, setManualProgress] = useState<string | null>(null);
 
   const debouncedQuery = useDebouncedValue(query, 280);
-  const debouncedSetId = useDebouncedValue(setId, 280);
   const trimmedCardQuery = query.trim();
   const trimmedDebouncedCardQuery = debouncedQuery.trim();
   const cardSearchSettled = trimmedCardQuery === trimmedDebouncedCardQuery;
@@ -116,62 +118,26 @@ export function AddCardsModal({
     };
   }, [debouncedQuery, tab]);
 
-  useEffect(() => {
-    if (tab !== "set") {
-      setSetSuggestions([]);
-      return;
-    }
-    const q = debouncedSetId.trim();
-    if (!q) {
-      setSetSuggestions([]);
-      return;
-    }
-    let cancelled = false;
-    setSetSuggestLoading(true);
-    suggestCatalogSets({ q, language: TCGDEX_CATALOG_LANGUAGE })
-      .then((rows) => {
-        if (cancelled) return;
-        setSetSuggestions(
-          rows.map((r) => ({
-            id: r.id,
-            label: r.name,
-            detail: r.id,
-          })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setSetSuggestions([]);
-      })
-      .finally(() => {
-        if (!cancelled) setSetSuggestLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [debouncedSetId, tab]);
-
   function showSuccess(message: string) {
     setSuccessMessage(message);
   }
 
-  async function importSet() {
+  async function importJsonSet() {
     setLoading(true);
     setError(null);
-    setImportProgress("Loading set from TCGdex…");
+    setImportSummary(null);
+    setImportProgress("Parsing JSON…");
     try {
-      await importSetToCollection(
-        {
-          source: "tcgdex",
-          setExternalId: setId.trim(),
-          collectionId,
-          language: TCGDEX_CATALOG_LANGUAGE,
-        },
-        (done, total) => {
-          setImportProgress(`Importing cards & photos… ${done}/${total}`);
-        },
-      );
+      const groups = parseJsonSetImport(jsonText);
+      const result = await importJsonSetToCollection(groups, collectionId, (done, total) => {
+        setImportProgress(`Importing cards & photos… ${done}/${total}`);
+      });
       onAdded();
-      onClose();
+      if (result.unresolved.length === 0) {
+        onClose();
+        return;
+      }
+      setImportSummary(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
@@ -274,14 +240,18 @@ export function AddCardsModal({
           </button>
         </div>
         <div className="flex flex-wrap gap-2">
-          {(["set", "search", "manual"] as const).map((t) => (
+          {(["json", "search", "manual"] as const).map((t) => (
             <button
               key={t}
               type="button"
               className={`chip ${tab === t ? "chip-active" : ""}`}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                setImportSummary(null);
+                setError(null);
+              }}
             >
-              {t === "search" ? "Import card" : t === "set" ? "Import set" : "Manual"}
+              {t === "search" ? "Import card" : t === "json" ? "Import JSON" : "Manual"}
             </button>
           ))}
         </div>
@@ -317,27 +287,43 @@ export function AddCardsModal({
             </div>
           )}
 
-          {tab === "set" && (
+          {tab === "json" && (
             <div className="space-y-3">
-              <p className="text-sm text-muted">Only english sets available</p>
-              <CatalogAutocomplete
-                value={setId}
-                onChange={setSetId}
-                options={setSuggestions}
-                loading={setSuggestLoading}
-                minChars={1}
-                dropDirection="inline"
-                placeholder="Set name or ID (e.g. gym, gym2)"
+              <p className="text-xs text-muted">
+                Paste a set group or array of groups. Card names and set labels are yours; English
+                TCGdex ids in <code className="text-foreground">enSets</code> / optional{" "}
+                <code className="text-foreground">id</code> per card supply photos. Order in the file
+                is collection order (appended after existing cards).
+              </p>
+              <textarea
+                className="input min-h-[200px] font-mono text-xs"
+                placeholder={`{\n  "set": "Leader's Stadium",\n  "enSets": ["gym1"],\n  "cards": [{ "name": "Erika's Vileplume" }]\n}`}
+                value={jsonText}
+                onChange={(e) => setJsonText(e.target.value)}
                 disabled={loading}
-                onSelect={(opt) => setSetId(opt.id)}
               />
+              {importSummary && importSummary.unresolved.length > 0 && (
+                <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+                  <p className="font-medium text-amber-200">
+                    Imported {importSummary.imported} cards. {importSummary.unresolved.length} without
+                    a matching English image:
+                  </p>
+                  <ul className="mt-2 max-h-32 list-inside list-disc overflow-y-auto text-xs text-muted">
+                    {importSummary.unresolved.map((u) => (
+                      <li key={`${u.set}:${u.name}`}>
+                        {u.name} ({u.set}) — {u.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <button
                 type="button"
                 className="btn-primary w-full"
-                onClick={() => void importSet()}
-                disabled={loading || !setId.trim()}
+                onClick={() => void importJsonSet()}
+                disabled={loading || !jsonText.trim()}
               >
-                {loading && importProgress ? importProgress : "Import all cards into collection"}
+                {loading && importProgress ? importProgress : "Import JSON into collection"}
               </button>
             </div>
           )}

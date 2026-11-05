@@ -2,9 +2,12 @@ import { AddCardsModal, type CatalogSearchRow } from "@/components/AddCardsModal
 import { CardGrid } from "@/components/CardGrid";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ProgressBar } from "@/components/ui/ProgressBar";
-import { removeEntryFromCollection } from "@/lib/api/collection-entries";
+import {
+  removeEntryFromCollection,
+  reorderCollectionEntries,
+} from "@/lib/api/collection-entries";
 import { setCardOwned } from "@/lib/api/owned";
-import { downloadTextFile, exportCollectionOrderJson } from "@/lib/collection-order-json";
+import { AlertDialog } from "@/components/ui/AlertDialog";
 import { clampCollectionDescription } from "@/lib/collection-limits";
 import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
@@ -19,6 +22,7 @@ export function CollectionViewClient({
   reloadSeq = 0,
   onReload,
   onCollectionDeleted,
+  onCollectionUpdated,
   initialSearch = "",
 }: {
   collection: CollectionProgressSummary;
@@ -27,6 +31,7 @@ export function CollectionViewClient({
   reloadSeq?: number;
   onReload: () => void | Promise<void>;
   onCollectionDeleted?: () => void;
+  onCollectionUpdated?: () => void;
   initialSearch?: string;
 }) {
   const [collection, setCollection] = useState(initialCollection);
@@ -41,15 +46,44 @@ export function CollectionViewClient({
   const [search, setSearch] = useState(initialSearch);
   const [showAdd, setShowAdd] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsSaveError, setSettingsSaveError] = useState<string | null>(null);
+  const orderedEntries = useMemo(
+    () => [...entries].sort((a, b) => a.position - b.position),
+    [entries],
+  );
   const filtered = useMemo(() => {
-    let list = entries;
+    let list = orderedEntries;
     if (filter === "owned") list = list.filter((e) => e.owned);
     if (filter === "missing") list = list.filter((e) => !e.owned);
     if (search.trim()) {
       list = list.filter((e) => matchesCollectionEntrySearch(e, search));
     }
     return list;
-  }, [entries, filter, search]);
+  }, [orderedEntries, filter, search]);
+
+  const sortable = filter === "all" && !search.trim();
+
+  function reorderEntries(orderedIds: string[]) {
+    const byId = new Map(entries.map((e) => [e.id, e]));
+    const reordered = orderedIds.map((id, position) => {
+      const entry = byId.get(id);
+      if (!entry) throw new Error(`Unknown entry ${id}`);
+      return { ...entry, position };
+    });
+    const prev = entries;
+    setEntries(reordered);
+
+    if (collection.collection_id.startsWith("demo-")) return;
+
+    const updates = reordered
+      .filter((e) => prev.find((p) => p.id === e.id)?.position !== e.position)
+      .map((e) => ({ id: e.id, position: e.position }));
+
+    void reorderCollectionEntries(updates).catch(() => {
+      setEntries(prev);
+      void onReload();
+    });
+  }
 
   const owned = collection.owned_entries;
   const total = collection.total_entries;
@@ -228,17 +262,6 @@ export function CollectionViewClient({
           ))}
         </div>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="btn-ghost"
-            onClick={() => {
-              const json = exportCollectionOrderJson(entries);
-              const slug = collection.name.replace(/[^\w\-]+/g, "-").toLowerCase() || "collection";
-              downloadTextFile(`${slug}-cards.json`, json);
-            }}
-          >
-            Export names
-          </button>
           <button type="button" className="btn-ghost" onClick={() => setShowSettings(true)}>
             Settings
           </button>
@@ -258,7 +281,13 @@ export function CollectionViewClient({
         />
       </div>
 
-      <CardGrid entries={filtered} onToggleOwned={toggleOwned} onRemoveEntry={removeEntry} />
+      <CardGrid
+        entries={filtered}
+        onToggleOwned={toggleOwned}
+        onRemoveEntry={removeEntry}
+        sortable={sortable}
+        onReorder={sortable ? reorderEntries : undefined}
+      />
 
       {showAdd && (
         <AddCardsModal
@@ -274,13 +303,22 @@ export function CollectionViewClient({
       {showSettings && (
         <CollectionSettingsModal
           collection={collection}
-          entries={entries}
           onClose={() => setShowSettings(false)}
           onUpdated={setCollection}
-          onEntriesChanged={onReload}
+          onSaved={() => onCollectionUpdated?.()}
+          onSaveFailed={(previous, message) => {
+            setCollection(previous);
+            setSettingsSaveError(message);
+          }}
           onDeleted={onCollectionDeleted}
         />
       )}
+      <AlertDialog
+        open={settingsSaveError != null}
+        title="Could not save settings"
+        description={settingsSaveError ?? ""}
+        onClose={() => setSettingsSaveError(null)}
+      />
     </div>
   );
 }

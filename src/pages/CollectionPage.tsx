@@ -56,6 +56,9 @@ export function CollectionPage() {
       onCollectionDeleted={() => {
         void queryClient.invalidateQueries({ queryKey: ["collections", user?.id] });
       }}
+      onCollectionUpdated={() => {
+        void queryClient.invalidateQueries({ queryKey: ["collections", user?.id] });
+      }}
     />
   );
 }

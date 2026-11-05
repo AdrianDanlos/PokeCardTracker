@@ -1,70 +1,89 @@
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { CoverImageField } from "@/components/ui/CoverImageField";
-import { applyCollectionOrderImport } from "@/lib/api/collection-order";
-import { parseCollectionOrderJson } from "@/lib/collection-order-json";
 import { clampCollectionDescription, MAX_COLLECTION_DESCRIPTION_LENGTH } from "@/lib/collection-limits";
 import { deleteCollectionById } from "@/lib/api/collections";
 import { createClient } from "@/lib/supabase/client";
-import type { CollectionEntryWithCard, CollectionProgressSummary } from "@/lib/types";
+import type { CollectionProgressSummary } from "@/lib/types";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 export function CollectionSettingsModal({
   collection,
-  entries,
   onClose,
   onUpdated,
-  onEntriesChanged,
+  onSaved,
+  onSaveFailed,
   onDeleted,
 }: {
   collection: CollectionProgressSummary;
-  entries: CollectionEntryWithCard[];
   onClose: () => void;
   onUpdated: (c: CollectionProgressSummary) => void;
-  onEntriesChanged: () => void;
+  onSaved?: () => void;
+  onSaveFailed?: (previous: CollectionProgressSummary, message: string) => void;
   onDeleted?: () => void;
 }) {
   const navigate = useNavigate();
   const [name, setName] = useState(collection.name);
   const [description, setDescription] = useState(collection.description ?? "");
-  const [saving, setSaving] = useState(false);
   const [coverUploading, setCoverUploading] = useState(false);
   const [pendingCover, setPendingCover] = useState<File | null>(null);
-  const [orderJson, setOrderJson] = useState("");
-  const [orderError, setOrderError] = useState<string | null>(null);
-  const [orderImporting, setOrderImporting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  async function saveAndClose(e?: { preventDefault?: () => void }) {
+  function saveAndClose(e?: { preventDefault?: () => void }) {
     e?.preventDefault?.();
     if (collection.collection_id.startsWith("demo-")) {
       onClose();
       return;
     }
-    if (saving || coverUploading || orderImporting) return;
-    setSaving(true);
+    if (coverUploading) return;
+
+    const trimmedName = name.trim();
+    const trimmedDescription = clampCollectionDescription(description.trim()) || null;
+    const unchanged =
+      trimmedName === collection.name &&
+      trimmedDescription === (collection.description ?? null);
+
+    if (unchanged) {
+      onClose();
+      return;
+    }
+
+    const optimistic: CollectionProgressSummary = {
+      ...collection,
+      name: trimmedName,
+      description: trimmedDescription,
+    };
+    const previous = collection;
+    onUpdated(optimistic);
+    onClose();
+
     const supabase = createClient();
-    const { data, error } = await supabase
+    void supabase
       .from("collections")
       .update({
-        name: name.trim(),
-        description: clampCollectionDescription(description.trim()) || null,
+        name: trimmedName,
+        description: trimmedDescription,
       })
       .eq("id", collection.collection_id)
       .select("*")
-      .single();
-    setSaving(false);
-    if (!error && data) {
-      onUpdated({
-        ...collection,
-        name: data.name,
-        description: data.description,
+      .single()
+      .then(({ data, error }) => {
+        if (error) {
+          onSaveFailed?.(previous, error.message);
+          return;
+        }
+        if (data) {
+          onUpdated({
+            ...optimistic,
+            name: data.name,
+            description: data.description,
+          });
+        }
+        onSaved?.();
       });
-      onClose();
-    }
   }
 
   async function uploadCover(file: File | null) {
@@ -91,6 +110,7 @@ export function CollectionSettingsModal({
     setPendingCover(null);
     if (data) {
       onUpdated({ ...collection, cover_image_path: data.cover_image_path });
+      onSaved?.();
     }
   }
 
@@ -109,29 +129,8 @@ export function CollectionSettingsModal({
     }
   }
 
-  async function importOrderJson() {
-    setOrderError(null);
-    if (collection.collection_id.startsWith("demo-")) return;
-    setOrderImporting(true);
-    try {
-      const rows = parseCollectionOrderJson(orderJson);
-      await applyCollectionOrderImport({
-        collectionId: collection.collection_id,
-        collectionName: name.trim() || collection.name,
-        rows,
-        existingEntries: entries,
-      });
-      setOrderJson("");
-      onEntriesChanged();
-    } catch (e) {
-      setOrderError(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setOrderImporting(false);
-    }
-  }
-
   function requestClose() {
-    void saveAndClose();
+    saveAndClose();
   }
 
   const { onBackdropMouseDown, onBackdropClick, onPanelMouseDown } =
@@ -145,7 +144,7 @@ export function CollectionSettingsModal({
       onClick={onBackdropClick}
     >
       <form
-        onSubmit={(e) => void saveAndClose(e)}
+        onSubmit={(e) => saveAndClose(e)}
         onMouseDown={onPanelMouseDown}
         className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6"
       >
@@ -155,8 +154,8 @@ export function CollectionSettingsModal({
             type="button"
             className="btn-ghost py-1 text-lg leading-none"
             aria-label="Save and close"
-            disabled={saving || coverUploading || orderImporting}
-            onClick={() => void saveAndClose()}
+            disabled={coverUploading}
+            onClick={() => saveAndClose()}
           >
             ×
           </button>
@@ -183,32 +182,6 @@ export function CollectionSettingsModal({
         />
         {coverUploading && <p className="text-xs text-muted">Uploading cover…</p>}
 
-        <div className="space-y-2">
-          <p className="text-sm font-medium">Import card order (JSON)</p>
-          <p className="text-xs text-muted">
-            Object keys are card names and values are slot numbers, e.g.{" "}
-            <code className="text-foreground">{`{"Pikachu": 1, "Raichu": 2}`}</code>
-            . Or an array of <code className="text-foreground">"Name: 1"</code> strings. Missing names are
-            added as manual cards.
-          </p>
-          <textarea
-            className="input min-h-[120px] font-mono text-xs"
-            placeholder='{"Card name": 1, "Other card": 2}'
-            value={orderJson}
-            onChange={(e) => setOrderJson(e.target.value)}
-            disabled={collection.collection_id.startsWith("demo-") || orderImporting}
-          />
-          {orderError && <p className="text-sm text-red-400">{orderError}</p>}
-          <button
-            type="button"
-            className="btn-ghost w-full"
-            disabled={!orderJson.trim() || orderImporting || collection.collection_id.startsWith("demo-")}
-            onClick={() => void importOrderJson()}
-          >
-            {orderImporting ? "Importing…" : "Apply JSON import"}
-          </button>
-        </div>
-
         {deleteError && <p className="text-sm text-red-400">{deleteError}</p>}
 
         <div className="flex flex-wrap justify-between gap-2">
@@ -224,7 +197,7 @@ export function CollectionSettingsModal({
             <button type="button" className="btn-ghost" onClick={onClose}>
               Cancel
             </button>
-            <button type="submit" className="btn-primary" disabled={saving}>
+            <button type="submit" className="btn-primary" disabled={coverUploading}>
               Save
             </button>
           </div>
