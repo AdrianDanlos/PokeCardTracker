@@ -1,19 +1,14 @@
-export type CardCategory = "official" | "promo" | "variant" | "misprint" | "custom";
-export type CardCondition = "NM" | "LP" | "MP" | "HP" | "DMG";
-export type CardSourceId = "pokemontcg" | "tcgdex" | "manual";
+export type CardSourceId = "tcgdex" | "manual";
+
+export const DEFAULT_CARD_LANGUAGE = "jp";
 
 export interface CardRecord {
   id: string;
   source_id: CardSourceId;
   external_id: string | null;
   set_id: string | null;
-  number: string | null;
   name: string;
-  rarity: string | null;
   language: string;
-  edition: string | null;
-  variant: string | null;
-  category: CardCategory;
   image_path: string | null;
   image_url: string | null;
   attrs: Record<string, unknown>;
@@ -58,46 +53,19 @@ export interface CollectionEntryWithCard {
   collection_id: string;
   card_id: string;
   position: number;
-  slot_label: string | null;
-  notes: string | null;
   card: CardRecord & {
     set?: SetRecord | null;
   };
-  owned_quantity: number;
-  owned_copies: OwnedCopyRecord[];
-  owned_copy: OwnedCopyRecord | null;
-}
-
-export interface OwnedCopyRecord {
-  id: string;
-  user_id: string;
-  card_id: string;
-  condition: CardCondition;
-  language: string | null;
-  edition: string | null;
-  variant: string | null;
-  quantity: number;
-  purchase_price: number | null;
-  notes: string | null;
+  owned: boolean;
+  owned_language: string | null;
 }
 
 export interface CardSearchResult {
   externalId: string;
   name: string;
-  number: string | null;
   setName: string | null;
   setExternalId: string | null;
-  rarity: string | null;
   language: string;
   imageUrl: string | null;
-  category: CardCategory;
-  edition: string | null;
-  variant: string | null;
   raw?: Record<string, unknown>;
-}
-
-export interface ProgressBreakdown {
-  by_rarity: Record<string, { total: number; owned: number }>;
-  by_set: Record<string, { total: number; owned: number }>;
-  by_category: Record<string, { total: number; owned: number }>;
 }

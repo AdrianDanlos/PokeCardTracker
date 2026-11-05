@@ -1,38 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { CollectionViewClient } from "@/components/CollectionViewClient";
 import { useAuth } from "@/lib/auth/AuthProvider";
-import {
-  getCollectionEntries,
-  getCollectionSummary,
-  getProgressBreakdown,
-} from "@/lib/data/collections";
+import { getCollectionEntries, getCollectionSummary } from "@/lib/data/collections";
 
 export function CollectionPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const q = searchParams.get("q") ?? "";
-  const { user, loading: authLoading } = useAuth();
-
-  const queryKey = ["collection", id, user?.id, q];
+  const { user } = useAuth();
 
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey,
+    queryKey: ["collection", id, user?.id, q],
     enabled: !!user && !!id,
     queryFn: async () => {
       const summary = await getCollectionSummary(id!, user!.id);
       if (!summary) throw new Error("Collection not found");
-      const [entries, breakdown] = await Promise.all([
-        getCollectionEntries(id!, user!.id, q || undefined),
-        getProgressBreakdown(id!),
-      ]);
-      return { summary, entries, breakdown };
+      const entries = await getCollectionEntries(id!, user!.id, q || undefined);
+      return { summary, entries };
     },
   });
 
-  if (authLoading) return <p className="text-muted">Loading…</p>;
-  if (!user) return <Navigate to="/login" replace />;
-  if (!id) return <Navigate to="/" replace />;
+  if (!id) return null;
   if (isLoading) return <p className="text-muted">Loading collection…</p>;
   if (error || !data) {
     return (
@@ -49,7 +38,6 @@ export function CollectionPage() {
     <CollectionViewClient
       collection={data.summary}
       initialEntries={data.entries}
-      breakdown={data.breakdown}
       initialSearch={q}
       onReload={() => void refetch()}
     />

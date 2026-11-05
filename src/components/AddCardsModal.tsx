@@ -1,27 +1,36 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   addCardToCollection,
   bulkAddCardsToCollection,
   createManualCard,
   importSetToCollection,
   searchCatalogCards,
+  suggestCatalogCards,
+  suggestCatalogSets,
 } from "@/lib/api/cards";
-import type { CardCategory, CardSourceId } from "@/lib/types";
+import { CoverImageField } from "@/components/ui/CoverImageField";
+import {
+  CatalogAutocomplete,
+  type CatalogAutocompleteOption,
+} from "@/components/ui/CatalogAutocomplete";
+import { useDebouncedValue } from "@/lib/useDebouncedValue";
+import { DEFAULT_CARD_LANGUAGE } from "@/lib/types";
 
 type SearchRow = { externalId: string; name: string; setName: string | null };
 
 export function AddCardsModal({
   collectionId,
+  collectionName,
   onClose,
   onAdded,
 }: {
   collectionId: string;
+  collectionName: string;
   onClose: () => void;
   onAdded: () => void;
 }) {
   const [tab, setTab] = useState<"search" | "set" | "manual">("search");
-  const [source, setSource] = useState<CardSourceId>("tcgdex");
-  const [tcgLanguage, setTcgLanguage] = useState<"ja" | "en">("ja");
+  const [tcgLanguage, setTcgLanguage] = useState<"jp" | "en">("jp");
   const [query, setQuery] = useState("");
   const [setId, setSetId] = useState("");
   const [results, setResults] = useState<SearchRow[]>([]);
@@ -29,24 +38,95 @@ export function AddCardsModal({
   const [loading, setLoading] = useState(false);
   const [manual, setManual] = useState({
     name: "",
-    number: "",
-    setName: "",
-    rarity: "",
-    language: "en",
-    category: "custom" as CardCategory,
-    edition: "",
-    variant: "",
+    language: DEFAULT_CARD_LANGUAGE,
   });
+  const [manualImage, setManualImage] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [cardSuggestLoading, setCardSuggestLoading] = useState(false);
+  const [setSuggestLoading, setSetSuggestLoading] = useState(false);
+  const [cardSuggestions, setCardSuggestions] = useState<CatalogAutocompleteOption[]>([]);
+  const [setSuggestions, setSetSuggestions] = useState<CatalogAutocompleteOption[]>([]);
+  const [importProgress, setImportProgress] = useState<string | null>(null);
 
-  async function runSearch() {
+  const debouncedQuery = useDebouncedValue(query, 280);
+  const debouncedSetId = useDebouncedValue(setId, 280);
+
+  useEffect(() => {
+    if (tab !== "search") {
+      setCardSuggestions([]);
+      return;
+    }
+    const q = debouncedQuery.trim();
+    if (q.length < 2) {
+      setCardSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    setCardSuggestLoading(true);
+    suggestCatalogCards({ q, language: tcgLanguage })
+      .then((rows) => {
+        if (cancelled) return;
+        setCardSuggestions(
+          rows.map((r) => ({
+            id: r.externalId,
+            label: r.name,
+            detail: r.externalId,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setCardSuggestions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setCardSuggestLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedQuery, tcgLanguage, tab]);
+
+  useEffect(() => {
+    if (tab !== "set") {
+      setSetSuggestions([]);
+      return;
+    }
+    const q = debouncedSetId.trim();
+    if (!q) {
+      setSetSuggestions([]);
+      return;
+    }
+    let cancelled = false;
+    setSetSuggestLoading(true);
+    suggestCatalogSets({ q, language: tcgLanguage })
+      .then((rows) => {
+        if (cancelled) return;
+        setSetSuggestions(
+          rows.map((r) => ({
+            id: r.id,
+            label: r.name,
+            detail: r.id,
+          })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setSetSuggestions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setSetSuggestLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [debouncedSetId, tcgLanguage, tab]);
+
+  async function runSearch(searchQuery = query) {
     setLoading(true);
     setError(null);
     try {
       const rows = await searchCatalogCards({
-        q: query,
-        source,
-        language: source === "tcgdex" ? tcgLanguage : undefined,
+        q: searchQuery,
+        source: "tcgdex",
+        language: tcgLanguage,
       });
       setResults(rows);
       setSelected(new Set(rows.map((r) => r.externalId)));
@@ -60,34 +140,42 @@ export function AddCardsModal({
   async function importSet() {
     setLoading(true);
     setError(null);
+    setImportProgress("Loading set from TCGdex…");
     try {
-      await importSetToCollection({
-        source,
-        setExternalId: setId,
-        collectionId,
-        language: source === "tcgdex" ? tcgLanguage : undefined,
-      });
+      await importSetToCollection(
+        {
+          source: "tcgdex",
+          setExternalId: setId.trim(),
+          collectionId,
+          language: tcgLanguage,
+        },
+        (done, total) => {
+          setImportProgress(`Adding cards… ${done}/${total}`);
+        },
+      );
       onAdded();
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
     } finally {
       setLoading(false);
+      setImportProgress(null);
     }
   }
 
   async function addResult(externalId: string) {
     setLoading(true);
+    setError(null);
     try {
       await addCardToCollection({
-        source,
+        source: "tcgdex",
         externalId,
         collectionId,
-        language: source === "tcgdex" ? tcgLanguage : undefined,
+        language: tcgLanguage,
       });
       onAdded();
-    } catch {
-      /* ignore single add errors in UI */
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not add card");
     } finally {
       setLoading(false);
     }
@@ -100,10 +188,10 @@ export function AddCardsModal({
     setError(null);
     try {
       await bulkAddCardsToCollection({
-        source,
+        source: "tcgdex",
         externalIds: ids,
         collectionId,
-        language: source === "tcgdex" ? tcgLanguage : undefined,
+        language: tcgLanguage,
       });
       onAdded();
       onClose();
@@ -118,19 +206,13 @@ export function AddCardsModal({
     e.preventDefault();
     setLoading(true);
     setError(null);
-    const fileInput = document.getElementById("manual-image") as HTMLInputElement | null;
     try {
       await createManualCard({
         collectionId,
         name: manual.name,
-        number: manual.number,
-        setName: manual.setName,
-        rarity: manual.rarity,
+        setName: collectionName,
         language: manual.language,
-        category: manual.category,
-        edition: manual.edition,
-        variant: manual.variant,
-        imageFile: fileInput?.files?.[0] ?? null,
+        imageFile: manualImage,
       });
       onAdded();
       onClose();
@@ -152,14 +234,14 @@ export function AddCardsModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-border bg-surface-elevated">
-        <div className="flex items-center justify-between border-b border-border p-4">
+      <div className="flex max-h-[90vh] w-full max-w-lg flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface-elevated p-6">
+        <div className="flex items-center justify-between gap-4">
           <h2 className="text-xl font-semibold">Add cards</h2>
           <button type="button" className="btn-ghost py-1" onClick={onClose}>
             Close
           </button>
         </div>
-        <div className="flex gap-2 border-b border-border p-4">
+        <div className="flex flex-wrap gap-2">
           {(["search", "set", "manual"] as const).map((t) => (
             <button
               key={t}
@@ -171,46 +253,43 @@ export function AddCardsModal({
             </button>
           ))}
         </div>
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="min-h-0">
           {tab !== "manual" && (
-            <>
-              <label className="mb-3 block text-sm">
-                <span className="text-muted">Source</span>
-                <select
-                  className="input mt-1"
-                  value={source}
-                  onChange={(e) => setSource(e.target.value as CardSourceId)}
-                >
-                  <option value="tcgdex">TCGdex (recommended — JP/EN + photos)</option>
-                  <option value="pokemontcg">pokemontcg.io (English)</option>
-                </select>
-              </label>
-              {source === "tcgdex" && (
-                <label className="mb-3 block text-sm">
-                  <span className="text-muted">TCGdex language</span>
-                  <select
-                    className="input mt-1"
-                    value={tcgLanguage}
-                    onChange={(e) => setTcgLanguage(e.target.value as "ja" | "en")}
-                  >
-                    <option value="ja">Japanese (ja)</option>
-                    <option value="en">English (en)</option>
-                  </select>
-                </label>
-              )}
-            </>
+            <label className="mb-3 block text-sm">
+              <span className="text-muted">TCGdex language</span>
+              <select
+                className="input mt-1"
+                value={tcgLanguage}
+                onChange={(e) => setTcgLanguage(e.target.value as "jp" | "en")}
+              >
+                <option value="jp">Japanese (jp)</option>
+                <option value="en">English (en)</option>
+              </select>
+            </label>
           )}
 
           {tab === "search" && (
             <div className="space-y-3">
               <div className="flex gap-2">
-                <input
-                  className="input flex-1"
-                  placeholder="Search name or number"
+                <CatalogAutocomplete
                   value={query}
-                  onChange={(e) => setQuery(e.target.value)}
+                  onChange={setQuery}
+                  options={cardSuggestions}
+                  loading={cardSuggestLoading}
+                  minChars={2}
+                  placeholder="Search card name"
+                  disabled={loading}
+                  onSelect={(opt) => {
+                    setQuery(opt.label);
+                    void runSearch(opt.label);
+                  }}
                 />
-                <button type="button" className="btn-primary" onClick={runSearch} disabled={loading}>
+                <button
+                  type="button"
+                  className="btn-primary shrink-0"
+                  onClick={() => void runSearch()}
+                  disabled={loading}
+                >
                   Search
                 </button>
               </div>
@@ -249,42 +328,52 @@ export function AddCardsModal({
 
           {tab === "set" && (
             <div className="space-y-3">
-              <input
-                className="input"
-                placeholder="Set ID (e.g. gym2, swsh1)"
+              <CatalogAutocomplete
                 value={setId}
-                onChange={(e) => setSetId(e.target.value)}
+                onChange={setSetId}
+                options={setSuggestions}
+                loading={setSuggestLoading}
+                minChars={1}
+                placeholder="Set name or ID (e.g. gym, gym2)"
+                disabled={loading}
+                onSelect={(opt) => setSetId(opt.id)}
               />
-              <button type="button" className="btn-primary" onClick={importSet} disabled={loading || !setId}>
-                Import all cards into collection
+              <button
+                type="button"
+                className="btn-primary relative z-20 w-full"
+                onClick={() => void importSet()}
+                disabled={loading || !setId.trim()}
+              >
+                {loading && importProgress ? importProgress : "Import all cards into collection"}
               </button>
             </div>
           )}
 
           {tab === "manual" && (
             <form className="space-y-3" onSubmit={createManual}>
+              <p className="text-sm text-muted">
+                Set: <span className="text-foreground">{collectionName}</span>
+              </p>
               <input className="input" placeholder="Card name" required value={manual.name} onChange={(e) => setManual({ ...manual, name: e.target.value })} />
-              <input className="input" placeholder="Number" value={manual.number} onChange={(e) => setManual({ ...manual, number: e.target.value })} />
-              <input className="input" placeholder="Set name" value={manual.setName} onChange={(e) => setManual({ ...manual, setName: e.target.value })} />
-              <input className="input" placeholder="Rarity" value={manual.rarity} onChange={(e) => setManual({ ...manual, rarity: e.target.value })} />
               <input className="input" placeholder="Language" value={manual.language} onChange={(e) => setManual({ ...manual, language: e.target.value })} />
-              <select className="input" value={manual.category} onChange={(e) => setManual({ ...manual, category: e.target.value as CardCategory })}>
-                <option value="official">Official</option>
-                <option value="promo">Promo</option>
-                <option value="variant">Variant</option>
-                <option value="misprint">Misprint</option>
-                <option value="custom">Custom</option>
-              </select>
-              <input className="input" placeholder="Edition" value={manual.edition} onChange={(e) => setManual({ ...manual, edition: e.target.value })} />
-              <input className="input" placeholder="Variant label" value={manual.variant} onChange={(e) => setManual({ ...manual, variant: e.target.value })} />
-              <input id="manual-image" type="file" accept="image/*" className="text-sm text-muted" />
+              <CoverImageField
+                label=""
+                emptyText="No photo"
+                previewAspectClass="aspect-[3/4]"
+                previewWrapClassName="mx-auto w-full max-w-[120px]"
+                actionsWrapClassName="mx-auto w-full max-w-[120px]"
+                emptyTextClassName="text-xs"
+                file={manualImage}
+                onFileChange={setManualImage}
+                disabled={loading}
+              />
               <button type="submit" className="btn-primary w-full" disabled={loading}>
                 Create & add to collection
               </button>
             </form>
           )}
 
-          {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
         </div>
       </div>
     </div>

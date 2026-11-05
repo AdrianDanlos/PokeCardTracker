@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import { CollectionCard } from "@/components/CollectionCard";
 import { NewCollectionModal } from "@/components/NewCollectionModal";
-import { exportInventoryCsv } from "@/lib/csv";
-import { createClient } from "@/lib/supabase/client";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 export function DashboardClient({
@@ -25,24 +22,6 @@ export function DashboardClient({
     );
   }, [collections, search]);
 
-  async function exportInventory() {
-    const supabase = createClient();
-    const { data: userData } = await supabase.auth.getUser();
-    if (!userData.user) return;
-    const { data: copies } = await supabase.from("owned_copies").select("*").eq("user_id", userData.user.id);
-    if (!copies?.length) return;
-    const cardIds = [...new Set(copies.map((c) => c.card_id))];
-    const { data: cards } = await supabase.from("cards").select("id, name").in("id", cardIds);
-    const names = new Map((cards ?? []).map((c) => [c.id, c.name as string]));
-    const csv = exportInventoryCsv(copies, names);
-    const blob = new Blob([csv], { type: "text/csv" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "inventory.csv";
-    a.click();
-  }
-
   return (
     <div className="space-y-8">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
@@ -59,9 +38,6 @@ export function DashboardClient({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
-          <button type="button" className="btn-ghost whitespace-nowrap" onClick={exportInventory}>
-            Export inventory CSV
-          </button>
           <button type="button" className="btn-primary whitespace-nowrap" onClick={() => setShowNew(true)}>
             New collection
           </button>
@@ -87,18 +63,6 @@ export function DashboardClient({
           }}
         />
       )}
-    </div>
-  );
-}
-
-export function DashboardRequiresAuth() {
-  return (
-    <div className="rounded-xl border border-border bg-surface p-10 text-center">
-      <h1 className="text-2xl font-bold">My collections</h1>
-      <p className="mt-3 text-muted">Sign in with a magic link to manage your collections.</p>
-      <Link to="/login" className="btn-primary mt-6 inline-block">
-        Log in
-      </Link>
     </div>
   );
 }

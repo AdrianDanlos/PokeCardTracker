@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link, Navigate } from "react-router-dom";
+import { Navigate } from "react-router-dom";
 import { useAuth } from "@/lib/auth/AuthProvider";
+import { getAuthRedirectUrl } from "@/lib/auth/redirectUrl";
 import { createClient } from "@/lib/supabase/client";
 
 export function LoginPage() {
@@ -9,6 +10,7 @@ export function LoginPage() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [lastRedirectTo, setLastRedirectTo] = useState<string | null>(null);
 
   if (!loading && user) return <Navigate to="/" replace />;
 
@@ -17,9 +19,11 @@ export function LoginPage() {
     setSubmitting(true);
     setError(null);
     const supabase = createClient();
+    const emailRedirectTo = getAuthRedirectUrl();
+    setLastRedirectTo(emailRedirectTo);
     const { error: authError } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: { emailRedirectTo },
     });
     setSubmitting(false);
     if (authError) {
@@ -36,7 +40,17 @@ export function LoginPage() {
         <p className="mt-2 text-sm text-muted">Single-user access to your PokeCardTracker collections.</p>
       </div>
       {sent ? (
-        <p className="text-sm text-accent">Check your email for the sign-in link.</p>
+        <div className="space-y-2 text-sm">
+          <p className="text-accent">Check your email for the sign-in link.</p>
+          {lastRedirectTo && (
+            <p className="text-muted">
+              After login you should land on:{" "}
+              <span className="break-all text-foreground">{lastRedirectTo}</span>
+              . If the email opens production instead, add that URL in Supabase → Authentication →
+              Redirect URLs.
+            </p>
+          )}
+        </div>
       ) : (
         <form className="space-y-4" onSubmit={submit}>
           <input
@@ -53,9 +67,6 @@ export function LoginPage() {
           </button>
         </form>
       )}
-      <Link to="/" className="text-sm text-muted hover:text-accent">
-        ← Back to dashboard
-      </Link>
     </div>
   );
 }
