@@ -149,8 +149,12 @@ export function AddCardsModal({
           collectionId,
           language: tcgLanguage,
         },
-        (done, total) => {
-          setImportProgress(`Adding cards… ${done}/${total}`);
+        (done, total, phase) => {
+          setImportProgress(
+            phase === "photos"
+              ? `Saving photos… ${done}/${total}`
+              : `Adding cards… ${done}/${total}`,
+          );
         },
       );
       onAdded();

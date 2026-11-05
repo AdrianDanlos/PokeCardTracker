@@ -34,21 +34,21 @@ export async function upsertCardFromSearch(
   setId: string | null,
   imagePath?: string | null,
 ) {
+  const row: Record<string, unknown> = {
+    source_id: sourceId,
+    external_id: result.externalId,
+    set_id: setId,
+    name: result.name,
+    language: result.language,
+    image_url: result.imageUrl,
+    attrs: result.raw ?? {},
+  };
+  if (imagePath !== undefined) {
+    row.image_path = imagePath;
+  }
   const { data, error } = await supabase
     .from("cards")
-    .upsert(
-      {
-        source_id: sourceId,
-        external_id: result.externalId,
-        set_id: setId,
-        name: result.name,
-        language: result.language,
-        image_url: result.imageUrl,
-        image_path: imagePath ?? null,
-        attrs: result.raw ?? {},
-      },
-      { onConflict: "source_id,external_id" },
-    )
+    .upsert(row, { onConflict: "source_id,external_id" })
     .select("*")
     .single();
   if (error) throw error;
@@ -69,11 +69,14 @@ export async function cacheRemoteImage(
     const res = await fetch(fetchUrl);
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
-    const ext = imageUrl.includes(".png") ? "png" : "jpg";
+    const isWebp = fetchUrl.endsWith(".webp") || res.headers.get("content-type")?.includes("webp");
+    const ext = imageUrl.includes(".png") ? "png" : isWebp ? "webp" : "jpg";
     const path = `${userId}/cached/${cardId}.${ext}`;
+    const contentType =
+      ext === "png" ? "image/png" : ext === "webp" ? "image/webp" : "image/jpeg";
     const { error } = await supabase.storage.from("card-images").upload(path, buf, {
       upsert: true,
-      contentType: ext === "png" ? "image/png" : "image/jpeg",
+      contentType,
     });
     if (error) return null;
     await supabase.from("cards").update({ image_path: path }).eq("id", cardId);

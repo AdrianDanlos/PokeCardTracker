@@ -96,7 +96,7 @@ export async function importSetToCollection(
     collectionId: string;
     language?: string;
   },
-  onProgress?: (done: number, total: number) => void,
+  onProgress?: (done: number, total: number, phase: "entries" | "photos") => void,
 ) {
   const supabase = createClient();
   const { data: userData } = await supabase.auth.getUser();
@@ -131,13 +131,13 @@ export async function importSetToCollection(
 
   const total = imported.cards.length;
   let done = 0;
-  onProgress?.(done, total);
+  onProgress?.(0, total, "entries");
+
+  const cardsForPhotos: { id: string; imageUrl: string | null }[] = [];
 
   for (const result of imported.cards) {
     const card = await upsertCardFromSearch(supabase, params.source, result, setId);
-    if (result.imageUrl) {
-      void cacheRemoteImage(supabase, userData.user.id, card.id as string, result.imageUrl);
-    }
+    cardsForPhotos.push({ id: card.id as string, imageUrl: result.imageUrl });
     const { error: entryErr } = await supabase.from("collection_entries").upsert(
       { collection_id: params.collectionId, card_id: card.id, position },
       { onConflict: "collection_id,card_id", ignoreDuplicates: true },
@@ -145,7 +145,17 @@ export async function importSetToCollection(
     if (entryErr) throw new Error(entryErr.message);
     position += 1;
     done += 1;
-    onProgress?.(done, total);
+    onProgress?.(done, total, "entries");
+  }
+
+  done = 0;
+  onProgress?.(0, total, "photos");
+  for (const { id, imageUrl } of cardsForPhotos) {
+    if (imageUrl) {
+      await cacheRemoteImage(supabase, userData.user.id, id, imageUrl);
+    }
+    done += 1;
+    onProgress?.(done, total, "photos");
   }
 }
 
