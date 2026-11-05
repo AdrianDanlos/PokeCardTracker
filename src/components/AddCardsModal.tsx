@@ -16,7 +16,10 @@ import {
 } from "@/components/ui/CatalogAutocomplete";
 import { useDismissableBackdrop } from "@/lib/useDismissableBackdrop";
 import { useDebouncedValue } from "@/lib/useDebouncedValue";
-import { fetchJapaneseSetCatalog, suggestJapaneseSets } from "@/lib/api/tcgplayer-set";
+import {
+  fetchJapaneseSetCatalog,
+  suggestJapaneseSets,
+} from "@/lib/api/tcgplayer-set";
 import { DEFAULT_CARD_LANGUAGE } from "@/lib/types";
 
 export type CatalogSearchRow = {
@@ -55,7 +58,9 @@ export function AddCardsModal({
   const [jsonMode, setJsonMode] = useState<"choose" | "ai">("choose");
   const [query, setQuery] = useState("");
   const [jsonText, setJsonText] = useState("");
-  const [cardRowsById, setCardRowsById] = useState<Map<string, CatalogSearchRow>>(() => new Map());
+  const [cardRowsById, setCardRowsById] = useState<
+    Map<string, CatalogSearchRow>
+  >(() => new Map());
   const [addingIds, setAddingIds] = useState<Set<string>>(new Set());
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -66,7 +71,9 @@ export function AddCardsModal({
   const [error, setError] = useState<string | null>(null);
   const [addErrorDialog, setAddErrorDialog] = useState<string | null>(null);
   const [cardSuggestLoading, setCardSuggestLoading] = useState(false);
-  const [cardSuggestions, setCardSuggestions] = useState<CatalogAutocompleteOption[]>([]);
+  const [cardSuggestions, setCardSuggestions] = useState<
+    CatalogAutocompleteOption[]
+  >([]);
   const [manualProgress, setManualProgress] = useState<string | null>(null);
   const [jsonJapaneseSetName, setJsonJapaneseSetName] = useState("");
   const [jsonPromptCopied, setJsonPromptCopied] = useState(false);
@@ -82,10 +89,12 @@ export function AddCardsModal({
   });
 
   const jpSetSuggestions = useMemo((): CatalogAutocompleteOption[] => {
-    return suggestJapaneseSets(jpSetCatalog, jsonJapaneseSetName, 30).map((entry) => ({
-      id: entry.slug,
-      label: entry.name,
-    }));
+    return suggestJapaneseSets(jpSetCatalog, jsonJapaneseSetName, 30).map(
+      (entry) => ({
+        id: entry.slug,
+        label: entry.name,
+      }),
+    );
   }, [jpSetCatalog, jsonJapaneseSetName]);
 
   const debouncedQuery = useDebouncedValue(query, 280);
@@ -258,7 +267,11 @@ export function AddCardsModal({
                 if (t === "json") setJsonMode("choose");
               }}
             >
-              {t === "search" ? "Import card" : t === "json" ? "Import Set" : "Manual"}
+              {t === "search"
+                ? "Import card"
+                : t === "json"
+                  ? "Import Set"
+                  : "Manual"}
             </button>
           ))}
         </div>
@@ -319,7 +332,8 @@ export function AddCardsModal({
                 jsonJapaneseSetNameTrimmed.length > 0 &&
                 jpSetSuggestions.length === 0 ? (
                   <p className="text-xs text-muted">
-                    No matching Japanese sets in the catalog. You can still use this name.
+                    No matching Japanese sets in the catalog. You can still use
+                    this name.
                   </p>
                 ) : null}
                 <p className="text-xs leading-snug text-muted">
@@ -363,7 +377,10 @@ export function AddCardsModal({
                     <ol className="list-decimal space-y-3 pl-5 text-sm text-muted">
                       <li>Copy prompt</li>
                       <li>Paste to AI to get results</li>
-                      <li>Ask AI to reorder the cards to match the binder order we want</li>
+                      <li>
+                        Ask AI to reorder the cards to match the binder order we
+                        want
+                      </li>
                       <li>Paste the JSON below</li>
                     </ol>
                     <button
@@ -373,11 +390,18 @@ export function AddCardsModal({
                       aria-disabled={!canCopyJsonPrompt}
                       onClick={() => {
                         if (!canCopyJsonPrompt) return;
-                        const promptText = buildJsonSetImportAiPrompt(jsonJapaneseSetNameTrimmed);
-                        void navigator.clipboard.writeText(promptText).then(() => {
-                          setJsonPromptCopied(true);
-                          window.setTimeout(() => setJsonPromptCopied(false), 2000);
-                        });
+                        const promptText = buildJsonSetImportAiPrompt(
+                          jsonJapaneseSetNameTrimmed,
+                        );
+                        void navigator.clipboard
+                          .writeText(promptText)
+                          .then(() => {
+                            setJsonPromptCopied(true);
+                            window.setTimeout(
+                              () => setJsonPromptCopied(false),
+                              2000,
+                            );
+                          });
                       }}
                     >
                       {jsonPromptCopied ? "Copied" : "Copy prompt"}
@@ -421,13 +445,21 @@ export function AddCardsModal({
                 onImageFileChange={setManualImage}
                 disabled={loading}
               />
-              <button type="submit" className="btn-primary w-full" disabled={loading}>
-                {loading && manualProgress ? manualProgress : "Create & add to collection"}
+              <button
+                type="submit"
+                className="btn-primary w-full"
+                disabled={loading}
+              >
+                {loading && manualProgress
+                  ? manualProgress
+                  : "Create & add to collection"}
               </button>
             </form>
           )}
 
-          {error && tab !== "search" && <p className="text-sm text-red-400">{error}</p>}
+          {error && tab !== "search" && (
+            <p className="text-sm text-red-400">{error}</p>
+          )}
         </div>
       </div>
       <AlertDialog
