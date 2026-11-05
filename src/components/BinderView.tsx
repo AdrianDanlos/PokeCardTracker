@@ -44,6 +44,59 @@ function totalPagesForSlotCount(slotCount: number) {
   return Math.max(1, Math.ceil(slotCount / POCKETS_PER_PAGE));
 }
 
+/** Page 1 alone, then spreads 2–3, 4–5, … like an open binder. */
+function totalSpreadsForPageCount(totalPages: number) {
+  if (totalPages <= 1) return 1;
+  return 1 + Math.ceil((totalPages - 1) / 2);
+}
+
+function spreadNavTitle(spreadIndex: number, totalPages: number) {
+  if (spreadIndex === 0) {
+    return totalPages === 1 ? "Page 1" : "Page 1 of " + totalPages;
+  }
+  const left = 2 * spreadIndex - 1;
+  const right = Math.min(2 * spreadIndex, totalPages - 1);
+  const label =
+    left === right
+      ? `Page ${left + 1}`
+      : `Pages ${left + 1}–${right + 1}`;
+  return `${label} of ${totalPages}`;
+}
+
+function spreadJumpLabel(spreadIndex: number, totalPages: number) {
+  if (spreadIndex === 0) return "1";
+  const left = 2 * spreadIndex - 1;
+  const right = Math.min(2 * spreadIndex, totalPages - 1);
+  return left === right ? `${left + 1}` : `${left + 1}–${right + 1}`;
+}
+
+function pagesInSpread(spreadIndex: number, totalPages: number) {
+  if (spreadIndex === 0) {
+    return { leftPageIndex: null as number | null, rightPageIndex: 0 };
+  }
+  const left = 2 * spreadIndex - 1;
+  const right = 2 * spreadIndex;
+  return {
+    leftPageIndex: left < totalPages ? left : null,
+    rightPageIndex: right < totalPages ? right : null,
+  };
+}
+
+function useMobileLayout() {
+  const [mobile, setMobile] = useState(() =>
+    typeof window !== "undefined"
+      ? window.matchMedia("(max-width: 767px)").matches
+      : false,
+  );
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 767px)");
+    const onChange = () => setMobile(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  return mobile;
+}
+
 type JumpItem =
   | { kind: "jump"; index: number; label: string }
   | { kind: "ellipsis" };
@@ -282,26 +335,31 @@ export function BinderView({
   onGapsChange?: (gaps: number[]) => void;
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
 }) {
+  const isMobile = useMobileLayout();
   const effectiveGaps = onGapsChange ? gaps : [];
   const slots = useMemo(
     () => buildBinderSlots(entries, effectiveGaps),
     [entries, effectiveGaps],
   );
   const totalPages = totalPagesForSlotCount(slots.length);
-  const maxNavIndex = Math.max(0, totalPages - 1);
+  const totalSpreads = totalSpreadsForPageCount(totalPages);
+  const maxNavIndex = Math.max(
+    0,
+    isMobile ? totalPages - 1 : totalSpreads - 1,
+  );
 
-  const [pageIndex, setPageIndex] = useState(0);
+  const [navIndex, setNavIndex] = useState(0);
 
   useEffect(() => {
-    setPageIndex((i) => Math.min(i, maxNavIndex));
+    setNavIndex((i) => Math.min(i, maxNavIndex));
   }, [maxNavIndex]);
 
   const goPrev = useCallback(() => {
-    setPageIndex((i) => Math.max(0, i - 1));
+    setNavIndex((i) => Math.max(0, i - 1));
   }, []);
 
   const goNext = useCallback(() => {
-    setPageIndex((i) => Math.min(maxNavIndex, i + 1));
+    setNavIndex((i) => Math.min(maxNavIndex, i + 1));
   }, [maxNavIndex]);
 
   useEffect(() => {
@@ -318,12 +376,22 @@ export function BinderView({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [goPrev, goNext]);
 
-  const navTitle = `Page ${pageIndex + 1} of ${totalPages}`;
+  const { leftPageIndex, rightPageIndex } = isMobile
+    ? { leftPageIndex: navIndex, rightPageIndex: null as number | null }
+    : pagesInSpread(navIndex, totalPages);
 
-  const jumpItems = useMemo(
-    () => buildJumpItems(pageIndex, totalPages, (i) => `${i + 1}`),
-    [pageIndex, totalPages],
-  );
+  const navTitle = isMobile
+    ? `Page ${navIndex + 1} of ${totalPages}`
+    : spreadNavTitle(navIndex, totalPages);
+
+  const jumpItems = useMemo(() => {
+    if (isMobile) {
+      return buildJumpItems(navIndex, totalPages, (i) => `${i + 1}`);
+    }
+    return buildJumpItems(navIndex, totalSpreads, (i) =>
+      spreadJumpLabel(i, totalPages),
+    );
+  }, [isMobile, navIndex, totalPages, totalSpreads]);
 
   return (
     <div className="space-y-4">
@@ -331,7 +399,7 @@ export function BinderView({
         <button
           type="button"
           className="btn-ghost px-3 py-2 disabled:opacity-40"
-          disabled={pageIndex <= 0}
+          disabled={navIndex <= 0}
           onClick={goPrev}
           aria-label="Previous page"
         >
@@ -343,7 +411,7 @@ export function BinderView({
         <button
           type="button"
           className="btn-ghost px-3 py-2 disabled:opacity-40"
-          disabled={pageIndex >= maxNavIndex}
+          disabled={navIndex >= maxNavIndex}
           onClick={goNext}
           aria-label="Next page"
         >
@@ -353,15 +421,44 @@ export function BinderView({
 
       <div className="rounded-2xl border border-border bg-surface-elevated p-3 sm:p-5">
         <div className="flex flex-col gap-4 md:flex-row md:items-stretch">
-          <BinderRings />
-          <BinderPagePanel
-            pageIndex={pageIndex}
-            pageNumberOneBased={pageIndex + 1}
-            slots={slots}
-            gaps={effectiveGaps}
-            onToggleOwned={onToggleOwned}
-            onGapsChange={onGapsChange}
-          />
+          {isMobile ? (
+            <BinderPagePanel
+              pageIndex={leftPageIndex!}
+              pageNumberOneBased={leftPageIndex! + 1}
+              slots={slots}
+              gaps={effectiveGaps}
+              onToggleOwned={onToggleOwned}
+              onGapsChange={onGapsChange}
+            />
+          ) : (
+            <>
+              {leftPageIndex != null ? (
+                <BinderPagePanel
+                  pageIndex={leftPageIndex}
+                  pageNumberOneBased={leftPageIndex + 1}
+                  slots={slots}
+                  gaps={effectiveGaps}
+                  onToggleOwned={onToggleOwned}
+                  onGapsChange={onGapsChange}
+                />
+              ) : (
+                <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
+              )}
+              <BinderRings />
+              {rightPageIndex != null ? (
+                <BinderPagePanel
+                  pageIndex={rightPageIndex}
+                  pageNumberOneBased={rightPageIndex + 1}
+                  slots={slots}
+                  gaps={effectiveGaps}
+                  onToggleOwned={onToggleOwned}
+                  onGapsChange={onGapsChange}
+                />
+              ) : (
+                <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
+              )}
+            </>
+          )}
         </div>
       </div>
 
@@ -376,11 +473,11 @@ export function BinderView({
               key={item.label}
               type="button"
               className={
-                item.index === pageIndex
+                item.index === navIndex
                   ? "btn-primary px-3 py-1 text-sm"
                   : "btn-ghost px-3 py-1 text-sm"
               }
-              onClick={() => setPageIndex(item.index)}
+              onClick={() => setNavIndex(item.index)}
             >
               {item.label}
             </button>
