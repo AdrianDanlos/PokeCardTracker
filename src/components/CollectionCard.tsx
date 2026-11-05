@@ -2,6 +2,10 @@ import { Link } from "react-router-dom";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import { coverImageSrc } from "@/lib/images";
 import { clampCollectionDescription } from "@/lib/collection-limits";
+import {
+  collectionOwnedPercentDisplay,
+  collectionOwnedPercentFill,
+} from "@/lib/collection-progress";
 import type { CollectionProgressSummary } from "@/lib/types";
 
 const GRADIENTS = [
@@ -25,6 +29,10 @@ export function CollectionCard({
   const gradient = GRADIENTS[index % GRADIENTS.length];
   const cover = coverImageSrc(collection.cover_image_path);
   const canDelete = onDelete && !collection.collection_id.startsWith("demo-");
+  const owned = collection.owned_entries;
+  const total = collection.total_entries;
+  const pctLabel = collectionOwnedPercentDisplay(owned, total);
+  const pctFill = collectionOwnedPercentFill(owned, total);
 
   return (
     <div className="relative h-full">
@@ -55,23 +63,23 @@ export function CollectionCard({
           <span className="text-sm text-muted">Cover image</span>
         )}
       </div>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 p-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-2 p-4">
         <h2 className="line-clamp-2 text-lg font-semibold leading-tight text-foreground group-hover:text-accent">
           {collection.name}
         </h2>
-        <div className="flex items-start gap-3">
-          <p className="line-clamp-2 min-w-0 flex-1 whitespace-pre-line text-sm leading-snug text-muted">
-            {clampCollectionDescription(collection.description?.trim() ?? "") || "\u00A0"}
-          </p>
-          <div className="w-[5.5rem] shrink-0">
-            <ProgressBar percent={Number(collection.owned_percent)} />
-          </div>
-        </div>
-        <div className="mt-auto flex items-center justify-between text-sm">
-          <span className="text-muted">
+        <p className="line-clamp-2 min-h-[2.5rem] whitespace-pre-line text-sm leading-snug text-muted">
+          {clampCollectionDescription(collection.description?.trim() ?? "") || "\u00A0"}
+        </p>
+        <div className="mt-auto flex items-end justify-between gap-3 pt-1">
+          <span className="text-sm text-muted">
             {collection.owned_entries} / {collection.total_entries}
           </span>
-          <span className="font-medium text-accent">{Math.round(Number(collection.owned_percent))}%</span>
+          <div className="flex w-[7rem] shrink-0 flex-col items-end gap-1">
+            <span className="text-sm font-medium tabular-nums text-accent">
+              {pctLabel}%
+            </span>
+            <ProgressBar percent={pctFill} />
+          </div>
         </div>
       </div>
     </Link>

@@ -344,7 +344,16 @@ export function AddCardsModal({
                     rel="noopener noreferrer"
                     className="break-all text-accent underline-offset-2 hover:underline"
                   >
-                    https://www.thetcgos.com/g/pokemon/japanese
+                    The TCG OS
+                  </a>
+                  {" · "}
+                  <a
+                    href="https://www.tcgcollector.com/sets/jp"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-accent underline-offset-2 hover:underline"
+                  >
+                    TCG Collector
                   </a>
                 </p>
               </div>

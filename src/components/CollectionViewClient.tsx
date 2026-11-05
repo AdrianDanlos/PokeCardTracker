@@ -8,6 +8,7 @@ import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { EditCardModal } from "@/components/EditCardModal";
 import { CollectionSettingsModal } from "@/components/CollectionSettingsModal";
 import { ReorderCollectionModal } from "@/components/ReorderCollectionModal";
+import { FilterSelect } from "@/components/ui/FilterSelect";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 import {
   removeEntryFromCollection,
@@ -19,12 +20,20 @@ import { importTcgplayerSet } from "@/lib/api/tcgplayer-set";
 import { AlertDialog } from "@/components/ui/AlertDialog";
 import { clampCollectionDescription } from "@/lib/collection-limits";
 import {
+  collectionOwnedPercentDisplay,
+  collectionOwnedPercentFill,
+} from "@/lib/collection-progress";
+import {
   importJsonSetToCollection,
   type JsonSetImportCardCommitted,
   type JsonSetImportCardPreview,
   type JsonSetImportUnresolved,
 } from "@/lib/api/cards";
-import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
+import {
+  collectionEntrySetFilterKey,
+  listCollectionSetFilterOptions,
+  matchesCollectionEntrySearch,
+} from "@/lib/collection-entry-search";
 import type { JsonSetImportGroup } from "@/lib/json-set-import";
 import {
   DEFAULT_CARD_LANGUAGE,
@@ -108,6 +117,7 @@ export function CollectionViewClient({
     setEntries(initialEntries);
   }, [reloadSeq, initialCollection, initialEntries]);
   const [filter, setFilter] = useState<FilterMode>("all");
+  const [setFilterKey, setSetFilterKey] = useState<string | null>(null);
   const [viewMode, setViewMode] =
     useState<CollectionViewMode>(readStoredViewMode);
   const [search, setSearch] = useState(initialSearch);
@@ -137,17 +147,28 @@ export function CollectionViewClient({
     () => [...entries].sort((a, b) => a.position - b.position),
     [entries],
   );
+  const setFilterOptions = useMemo(
+    () => listCollectionSetFilterOptions(orderedEntries),
+    [orderedEntries],
+  );
   const filtered = useMemo(() => {
     let list = orderedEntries;
     if (filter === "owned") list = list.filter((e) => e.owned);
     if (filter === "missing") list = list.filter((e) => !e.owned);
+    if (setFilterKey) {
+      list = list.filter(
+        (e) => collectionEntrySetFilterKey(e) === setFilterKey,
+      );
+    }
     if (search.trim()) {
       list = list.filter((e) => matchesCollectionEntrySearch(e, search));
     }
     return list;
-  }, [orderedEntries, filter, search]);
+  }, [orderedEntries, filter, setFilterKey, search]);
 
-  const sortable = viewMode === "grid" && filter === "all" && !search.trim();
+  const viewFilterActive = !search.trim() && !setFilterKey;
+  const sortable =
+    viewMode === "grid" && filter === "all" && viewFilterActive;
 
   function setViewModeAndPersist(mode: CollectionViewMode) {
     scrollYToRestoreRef.current = window.scrollY;
@@ -164,6 +185,18 @@ export function CollectionViewClient({
     setFilter(next);
   }
 
+  function selectSetFilter(key: string | null) {
+    scrollYToRestoreRef.current = window.scrollY;
+    setSetFilterKey(key);
+  }
+
+  useEffect(() => {
+    if (!setFilterKey) return;
+    if (!setFilterOptions.some((o) => o.key === setFilterKey)) {
+      setSetFilterKey(null);
+    }
+  }, [setFilterKey, setFilterOptions]);
+
   useLayoutEffect(() => {
     const saved = scrollYToRestoreRef.current;
     if (saved === null) return;
@@ -177,7 +210,7 @@ export function CollectionViewClient({
     };
     applyRestore();
     requestAnimationFrame(applyRestore);
-  }, [filter, viewMode, filtered.length]);
+  }, [filter, setFilterKey, viewMode, filtered.length]);
 
   function applyCardDisplayUpdate(
     cardId: string,
@@ -191,7 +224,7 @@ export function CollectionViewClient({
   }
 
   const binderGapsEditable =
-    filter === "all" && !search.trim() && !!collection;
+    filter === "all" && viewFilterActive && !!collection;
 
   function changeBinderGaps(nextGaps: number[]) {
     if (!collection) return;
@@ -244,7 +277,8 @@ export function CollectionViewClient({
     !hasOptimisticEntries;
   const owned = headerCollection?.owned_entries ?? 0;
   const total = headerCollection?.total_entries ?? 0;
-  const pct = total ? Math.round((100 * owned) / total) : 0;
+  const pct = collectionOwnedPercentDisplay(owned, total);
+  const pctFill = collectionOwnedPercentFill(owned, total);
 
   function applyOwnedToEntries(
     cardId: string,
@@ -564,7 +598,7 @@ export function CollectionViewClient({
                   : "\u00A0"}
               </p>
               <div className="w-full shrink-0 sm:max-w-md">
-                <ProgressBar percent={pct} />
+                <ProgressBar percent={pctFill} />
               </div>
             </div>
           </>
@@ -620,6 +654,17 @@ export function CollectionViewClient({
               </button>
             ))}
           </div>
+          <FilterSelect
+            ariaLabel="Set filter"
+            allLabel="All sets"
+            value={setFilterKey}
+            disabled={cardsLoading || setFilterOptions.length === 0}
+            options={setFilterOptions.map((opt) => ({
+              value: opt.key,
+              label: opt.label,
+            }))}
+            onChange={selectSetFilter}
+          />
         </div>
         <div className="flex flex-wrap gap-2">
           <button
@@ -660,7 +705,7 @@ export function CollectionViewClient({
             onKeyDown={(e) => e.key === "Enter" && onReload()}
           />
         </div>
-        {search.trim() && !cardsLoading ? (
+        {(search.trim() || setFilterKey) && !cardsLoading ? (
           <p className="text-sm text-muted tabular-nums">
             {filtered.length} {filtered.length === 1 ? "result" : "results"}
           </p>
@@ -675,7 +720,7 @@ export function CollectionViewClient({
         ) : collection ? (
           viewMode === "binder" ? (
             <BinderView
-              key={`binder-${collection.collection_id}-${search.trim()}-${filter}`}
+              key={`binder-${collection.collection_id}-${search.trim()}-${filter}-${setFilterKey ?? ""}`}
               entries={filtered}
               gaps={binderGapsEditable ? binderGaps : []}
               onGapsChange={

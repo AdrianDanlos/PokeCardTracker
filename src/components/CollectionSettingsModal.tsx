@@ -162,7 +162,7 @@ export function CollectionSettingsModal({
         </div>
         <input className="input" value={name} onChange={(e) => setName(e.target.value)} required />
         <textarea
-          className="input min-h-[102px]"
+          className="input min-h-[120px]"
           placeholder={`Description (max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
           value={description}
           maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}

@@ -22,3 +22,46 @@ export function matchesCollectionEntrySearch(
   const hay = collectionEntrySearchHaystack(entry);
   return tokens.every((t) => hay.includes(t));
 }
+
+export const COLLECTION_SET_FILTER_NONE = "__none__";
+
+export function collectionEntrySetFilterKey(
+  entry: CollectionEntryWithCard,
+): string {
+  const set = entry.card.set;
+  if (set?.id) return `set:${set.id}`;
+  const name = set?.name?.trim();
+  if (name) return `name:${name.toLowerCase()}`;
+  return COLLECTION_SET_FILTER_NONE;
+}
+
+export function collectionEntrySetFilterLabel(
+  entry: CollectionEntryWithCard,
+): string {
+  const name = entry.card.set?.name?.trim();
+  if (name) return name;
+  return "No set";
+}
+
+export type CollectionSetFilterOption = { key: string; label: string };
+
+export function listCollectionSetFilterOptions(
+  entries: CollectionEntryWithCard[],
+): CollectionSetFilterOption[] {
+  const byKey = new Map<string, string>();
+  for (const entry of entries) {
+    const key = collectionEntrySetFilterKey(entry);
+    if (!byKey.has(key)) {
+      byKey.set(key, collectionEntrySetFilterLabel(entry));
+    }
+  }
+  const noneKey = COLLECTION_SET_FILTER_NONE;
+  const withSet = [...byKey.entries()]
+    .filter(([key]) => key !== noneKey)
+    .map(([key, label]) => ({ key, label }))
+    .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: "base" }));
+  if (byKey.has(noneKey)) {
+    withSet.push({ key: noneKey, label: byKey.get(noneKey)! });
+  }
+  return withSet;
+}

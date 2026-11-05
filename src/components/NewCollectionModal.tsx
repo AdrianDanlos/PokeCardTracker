@@ -110,7 +110,7 @@ export function NewCollectionModal({
           required
         />
         <textarea
-          className="input min-h-[102px]"
+          className="input min-h-[120px]"
           placeholder={`Description (optional, max ${MAX_COLLECTION_DESCRIPTION_LENGTH} characters)`}
           value={description}
           maxLength={MAX_COLLECTION_DESCRIPTION_LENGTH}
