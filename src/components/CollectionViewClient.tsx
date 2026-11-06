@@ -77,6 +77,7 @@ export function CollectionViewClient({
   onCollectionDeleted,
   onCollectionUpdated,
   onBinderGapsSaved,
+  onOwnershipChanged,
   initialSearch = "",
 }: {
   collection: CollectionProgressSummary | null;
@@ -90,6 +91,8 @@ export function CollectionViewClient({
   onCollectionDeleted?: () => void;
   onCollectionUpdated?: () => void;
   onBinderGapsSaved?: (gaps: number[]) => void;
+  /** After ownership is persisted so list/cached queries stay in sync when leaving the page. */
+  onOwnershipChanged?: () => void;
   initialSearch?: string;
 }) {
   const [collection, setCollection] = useState(initialCollection);
@@ -551,9 +554,13 @@ export function CollectionViewClient({
 
     if (!collection || collection.collection_id.startsWith("demo-")) return;
 
-    void setCardOwned(entry.card_id, nextOwned, language).catch(() => {
-      applyOwnedToEntries(entry.card_id, prevOwned, prevLanguage);
-    });
+    void setCardOwned(entry.card_id, nextOwned, language)
+      .then(() => {
+        onOwnershipChanged?.();
+      })
+      .catch(() => {
+        applyOwnedToEntries(entry.card_id, prevOwned, prevLanguage);
+      });
   }
 
   async function runTcgplayerImport(setName: string) {

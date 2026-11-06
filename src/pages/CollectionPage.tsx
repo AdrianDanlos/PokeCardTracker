@@ -120,6 +120,17 @@ export function CollectionPage() {
           (old) => (old ? { ...old, binder_gaps: gaps } : old),
         );
       }}
+      onOwnershipChanged={() => {
+        void queryClient.invalidateQueries({
+          queryKey: ["collection-entries", id, user?.id],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["collection-summary", id, user?.id],
+        });
+        void queryClient.invalidateQueries({
+          queryKey: ["collections", user?.id],
+        });
+      }}
     />
   );
 }
