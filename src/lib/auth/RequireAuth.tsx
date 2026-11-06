@@ -1,4 +1,5 @@
 import { Navigate, useLocation } from "react-router-dom";
+import { CollectionLoadingScreen } from "@/components/CollectionLoadingScreen";
 import { isLocalDevGuestMode } from "@/lib/auth/devGuest";
 import { useAuth } from "@/lib/auth/AuthProvider";
 
@@ -7,7 +8,11 @@ export function RequireAuth({ children }: { children: React.ReactNode }) {
   const location = useLocation();
 
   if (loading) {
-    return <p className="text-muted">Loading…</p>;
+    return (
+      <div className="flex min-h-[min(100dvh,100vh)] w-full items-center justify-center">
+        <CollectionLoadingScreen message="" className="min-h-0 py-4" />
+      </div>
+    );
   }
 
   if (!user) {
