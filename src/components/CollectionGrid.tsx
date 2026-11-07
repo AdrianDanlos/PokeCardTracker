@@ -124,7 +124,7 @@ export function CollectionGrid({
   }
 
   const grid = (
-    <div className="grid items-stretch gap-5 sm:grid-cols-2 xl:grid-cols-2">
+    <div className="grid items-stretch gap-5 sm:grid-cols-3">
       {collections.map((c, i) =>
         sortable && onReorder ? (
           <SortableCollectionCard
