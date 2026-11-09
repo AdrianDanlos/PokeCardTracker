@@ -1,9 +1,11 @@
 import { CardImage } from "@/components/CardImage";
 import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { CollectionEntryWithCard } from "@/lib/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 const POCKETS_PER_PAGE = 9;
+
+const EMPTY_GAPS: number[] = [];
 
 /** Same outer box for filled and empty pockets so a short last row cannot shrink the page. */
 const POCKET_FRAME = "flex w-full flex-col gap-1.5 rounded-lg border-2 p-1.5";
@@ -371,9 +373,10 @@ export function BinderView({
   highlightQuery?: string;
 }) {
   const isMobile = useMobileLayout();
+  const effectiveGaps = onGapsChange ? gaps : EMPTY_GAPS;
   const slots = useMemo(
-    () => buildBinderSlots(entries, gaps),
-    [entries, gaps],
+    () => buildBinderSlots(entries, effectiveGaps),
+    [entries, effectiveGaps],
   );
   const totalPages = totalPagesForSlotCount(slots.length);
   const totalSpreads = totalSpreadsForPageCount(totalPages);
@@ -383,7 +386,6 @@ export function BinderView({
   );
 
   const [navIndex, setNavIndex] = useState(0);
-  const userChosePageRef = useRef(false);
 
   const trimmedHighlightQuery = highlightQuery.trim();
   const searchActive = trimmedHighlightQuery.length > 0;
@@ -422,13 +424,7 @@ export function BinderView({
   }, [pagesWithMatches]);
 
   useEffect(() => {
-    userChosePageRef.current = false;
-  }, [trimmedHighlightQuery]);
-
-  useEffect(() => {
-    if (!searchActive || userChosePageRef.current) return;
-    if (!highlightedIds || highlightedIds.size === 0) return;
-
+    if (!searchActive || !highlightedIds || highlightedIds.size === 0) return;
     let firstSlot: number | null = null;
     for (let i = 0; i < slots.length; i++) {
       const entry = slots[i];
@@ -442,34 +438,21 @@ export function BinderView({
     const nextNav = isMobile
       ? pageIndex
       : pageIndexToSpreadIndex(pageIndex);
-    setNavIndex(nextNav);
-  }, [
-    trimmedHighlightQuery,
-    isMobile,
-    searchActive,
-    slots,
-    highlightedIds,
-  ]);
-
-  const goToNavIndex = useCallback(
-    (next: number | ((current: number) => number)) => {
-      userChosePageRef.current = true;
-      setNavIndex(next);
-    },
-    [],
-  );
+    setNavIndex((i) => (i === nextNav ? i : nextNav));
+    // Only jump when the query (or layout) changes — not on every slots recompute.
+  }, [trimmedHighlightQuery, isMobile]);
 
   useEffect(() => {
     setNavIndex((i) => Math.min(i, maxNavIndex));
   }, [maxNavIndex]);
 
   const goPrev = useCallback(() => {
-    goToNavIndex((i) => Math.max(0, i - 1));
-  }, [goToNavIndex]);
+    setNavIndex((i) => Math.max(0, i - 1));
+  }, []);
 
   const goNext = useCallback(() => {
-    goToNavIndex((i) => Math.min(maxNavIndex, i + 1));
-  }, [goToNavIndex, maxNavIndex]);
+    setNavIndex((i) => Math.min(maxNavIndex, i + 1));
+  }, [maxNavIndex]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -514,7 +497,7 @@ export function BinderView({
         >
           ←
         </button>
-        <span className="min-w-[10rem] text-center text-sm font-medium tabular-nums sm:text-left">
+        <span className="text-sm font-medium tabular-nums">
           {navTitle}
         </span>
         <button
@@ -535,7 +518,7 @@ export function BinderView({
               pageIndex={leftPageIndex!}
               pageNumberOneBased={leftPageIndex! + 1}
               slots={slots}
-              gaps={gaps}
+              gaps={effectiveGaps}
               onToggleOwned={onToggleOwned}
               onGapsChange={onGapsChange}
               highlightedIds={highlightedIds}
@@ -548,7 +531,7 @@ export function BinderView({
                   pageIndex={leftPageIndex}
                   pageNumberOneBased={leftPageIndex + 1}
                   slots={slots}
-                  gaps={gaps}
+                  gaps={effectiveGaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
                   highlightedIds={highlightedIds}
@@ -563,7 +546,7 @@ export function BinderView({
                   pageIndex={rightPageIndex}
                   pageNumberOneBased={rightPageIndex + 1}
                   slots={slots}
-                  gaps={gaps}
+                  gaps={effectiveGaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
                   highlightedIds={highlightedIds}
@@ -592,11 +575,12 @@ export function BinderView({
                   ? "btn-primary px-3 py-1 text-sm"
                   : "btn-ghost px-3 py-1 text-sm"
               }
-              onClick={() => goToNavIndex(item.index)}
+              onClick={() => setNavIndex(item.index)}
             >
               <span className="inline-flex items-center gap-1.5">
                 {item.label}
                 {searchActive &&
+                item.index !== navIndex &&
                 (isMobile
                   ? pagesWithMatches.has(item.index)
                   : spreadsWithMatches.has(item.index)) ? (
