@@ -208,7 +208,9 @@ function BinderPocket({
         dimmedBySearch ? "opacity-40" : ""
       } ${
         highlighted
-          ? "z-[1] scale-[1.02] ring-2 ring-accent"
+          ? `z-[1] scale-[1.02] border-accent border-solid ${
+              owned ? "bg-surface-elevated" : "bg-transparent"
+            }`
           : owned
             ? "border-border bg-surface-elevated"
             : "border-dashed border-missing bg-transparent"
@@ -224,7 +226,11 @@ function BinderPocket({
           className="h-full w-full"
         />
         {owned ? (
-          <div className="binder-pocket-gloss pointer-events-none absolute inset-0 rounded-md ring-1 ring-inset ring-white/10" />
+          <div
+            className={`binder-pocket-gloss pointer-events-none absolute inset-0 rounded-md ${
+              highlighted ? "" : "ring-1 ring-inset ring-white/10"
+            }`}
+          />
         ) : null}
         <span className="absolute bottom-1 right-1 rounded bg-black/55 px-1 py-0.5 text-[10px] tabular-nums text-muted">
           #{slotNumber}
