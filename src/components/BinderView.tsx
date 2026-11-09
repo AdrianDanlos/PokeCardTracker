@@ -1,4 +1,5 @@
 import { CardImage } from "@/components/CardImage";
+import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { CollectionEntryWithCard } from "@/lib/types";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -61,6 +62,10 @@ function spreadNavTitle(spreadIndex: number, totalPages: number) {
       ? `Page ${left + 1}`
       : `Pages ${left + 1}–${right + 1}`;
   return `${label} of ${totalPages}`;
+}
+
+function pageIndexToSpreadIndex(pageIndex: number) {
+  return pageIndex <= 0 ? 0 : Math.ceil(pageIndex / 2);
 }
 
 function spreadJumpLabel(spreadIndex: number, totalPages: number) {
@@ -185,10 +190,14 @@ function BinderPocket({
   entry,
   slotNumber,
   onToggle,
+  highlighted = false,
+  dimmedBySearch = false,
 }: {
   entry: CollectionEntryWithCard;
   slotNumber: number;
   onToggle: (entry: CollectionEntryWithCard) => void;
+  highlighted?: boolean;
+  dimmedBySearch?: boolean;
 }) {
   const owned = entry.owned;
   return (
@@ -196,9 +205,13 @@ function BinderPocket({
       type="button"
       onClick={() => onToggle(entry)}
       className={`group ${POCKET_FRAME} text-left transition ${
-        owned
-          ? "border-border bg-surface-elevated"
-          : "border-dashed border-missing bg-transparent"
+        dimmedBySearch ? "opacity-40" : ""
+      } ${
+        highlighted
+          ? "z-[1] scale-[1.02] border-accent ring-2 ring-accent ring-offset-2 ring-offset-surface-elevated"
+          : owned
+            ? "border-border bg-surface-elevated"
+            : "border-dashed border-missing bg-transparent"
       }`}
       aria-label={`${entry.card.name}, slot ${slotNumber}. ${owned ? "Owned" : "Missing"}. Click to toggle.`}
     >
@@ -228,10 +241,14 @@ function BinderPageGrid({
   pageIndex,
   slots,
   onToggleOwned,
+  highlightedIds,
+  searchActive,
 }: {
   pageIndex: number;
   slots: (CollectionEntryWithCard | null)[];
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
+  highlightedIds: Set<string> | null;
+  searchActive: boolean;
 }) {
   const cells = useMemo(() => {
     const start = pageIndex * POCKETS_PER_PAGE;
@@ -250,6 +267,10 @@ function BinderPageGrid({
             entry={entry}
             slotNumber={entry.position + 1}
             onToggle={onToggleOwned}
+            highlighted={highlightedIds?.has(entry.id) ?? false}
+            dimmedBySearch={
+              searchActive && !(highlightedIds?.has(entry.id) ?? false)
+            }
           />
         ) : (
           <EmptyPocket key={`empty-${pageIndex}-${globalIndex}`} />
@@ -266,6 +287,8 @@ function BinderPagePanel({
   gaps,
   onToggleOwned,
   onGapsChange,
+  highlightedIds,
+  searchActive,
   className = "",
 }: {
   pageIndex: number;
@@ -274,6 +297,8 @@ function BinderPagePanel({
   gaps: number[];
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
   onGapsChange?: (gaps: number[]) => void;
+  highlightedIds: Set<string> | null;
+  searchActive: boolean;
   className?: string;
 }) {
   const canEditGaps = onGapsChange != null;
@@ -287,6 +312,8 @@ function BinderPagePanel({
           pageIndex={pageIndex}
           slots={slots}
           onToggleOwned={onToggleOwned}
+          highlightedIds={highlightedIds}
+          searchActive={searchActive}
         />
       </div>
       <div className="relative flex items-center justify-center">
@@ -329,11 +356,13 @@ export function BinderView({
   gaps = [],
   onGapsChange,
   onToggleOwned,
+  highlightQuery = "",
 }: {
   entries: CollectionEntryWithCard[];
   gaps?: number[];
   onGapsChange?: (gaps: number[]) => void;
   onToggleOwned: (entry: CollectionEntryWithCard) => void;
+  highlightQuery?: string;
 }) {
   const isMobile = useMobileLayout();
   const effectiveGaps = onGapsChange ? gaps : [];
@@ -349,6 +378,60 @@ export function BinderView({
   );
 
   const [navIndex, setNavIndex] = useState(0);
+
+  const trimmedHighlightQuery = highlightQuery.trim();
+  const searchActive = trimmedHighlightQuery.length > 0;
+
+  const highlightedIds = useMemo(() => {
+    if (!searchActive) return null;
+    const ids = new Set<string>();
+    for (const entry of entries) {
+      if (matchesCollectionEntrySearch(entry, trimmedHighlightQuery)) {
+        ids.add(entry.id);
+      }
+    }
+    return ids;
+  }, [entries, searchActive, trimmedHighlightQuery]);
+
+  const pagesWithMatches = useMemo(() => {
+    if (!highlightedIds || highlightedIds.size === 0) {
+      return new Set<number>();
+    }
+    const pages = new Set<number>();
+    for (let i = 0; i < slots.length; i++) {
+      const entry = slots[i];
+      if (entry && highlightedIds.has(entry.id)) {
+        pages.add(Math.floor(i / POCKETS_PER_PAGE));
+      }
+    }
+    return pages;
+  }, [slots, highlightedIds]);
+
+  const spreadsWithMatches = useMemo(() => {
+    const spreads = new Set<number>();
+    for (const page of pagesWithMatches) {
+      spreads.add(pageIndexToSpreadIndex(page));
+    }
+    return spreads;
+  }, [pagesWithMatches]);
+
+  useEffect(() => {
+    if (!searchActive || !highlightedIds || highlightedIds.size === 0) return;
+    let firstSlot: number | null = null;
+    for (let i = 0; i < slots.length; i++) {
+      const entry = slots[i];
+      if (entry && highlightedIds.has(entry.id)) {
+        firstSlot = i;
+        break;
+      }
+    }
+    if (firstSlot == null) return;
+    const pageIndex = Math.floor(firstSlot / POCKETS_PER_PAGE);
+    const nextNav = isMobile
+      ? pageIndex
+      : pageIndexToSpreadIndex(pageIndex);
+    setNavIndex((i) => (i === nextNav ? i : nextNav));
+  }, [trimmedHighlightQuery, isMobile, slots, searchActive, highlightedIds]);
 
   useEffect(() => {
     setNavIndex((i) => Math.min(i, maxNavIndex));
@@ -429,6 +512,8 @@ export function BinderView({
               gaps={effectiveGaps}
               onToggleOwned={onToggleOwned}
               onGapsChange={onGapsChange}
+              highlightedIds={highlightedIds}
+              searchActive={searchActive}
             />
           ) : (
             <>
@@ -440,6 +525,8 @@ export function BinderView({
                   gaps={effectiveGaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
+                  highlightedIds={highlightedIds}
+                  searchActive={searchActive}
                 />
               ) : (
                 <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
@@ -453,6 +540,8 @@ export function BinderView({
                   gaps={effectiveGaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
+                  highlightedIds={highlightedIds}
+                  searchActive={searchActive}
                 />
               ) : (
                 <div className="hidden min-w-0 flex-1 md:block" aria-hidden />
@@ -479,7 +568,18 @@ export function BinderView({
               }
               onClick={() => setNavIndex(item.index)}
             >
-              {item.label}
+              <span className="inline-flex items-center gap-1.5">
+                {item.label}
+                {searchActive &&
+                (isMobile
+                  ? pagesWithMatches.has(item.index)
+                  : spreadsWithMatches.has(item.index)) ? (
+                  <span
+                    className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent"
+                    aria-hidden
+                  />
+                ) : null}
+              </span>
             </button>
           ),
         )}

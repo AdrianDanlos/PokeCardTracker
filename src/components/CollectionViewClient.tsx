@@ -159,7 +159,7 @@ export function CollectionViewClient({
     () => listCollectionSetNamesFromEntries(orderedEntries),
     [orderedEntries],
   );
-  const filtered = useMemo(() => {
+  const baseFiltered = useMemo(() => {
     let list = orderedEntries;
     if (filter === "owned") list = list.filter((e) => e.owned);
     if (filter === "missing") list = list.filter((e) => !e.owned);
@@ -168,11 +168,13 @@ export function CollectionViewClient({
         (e) => collectionEntrySetFilterKey(e) === setFilterKey,
       );
     }
-    if (search.trim()) {
-      list = list.filter((e) => matchesCollectionEntrySearch(e, search));
-    }
     return list;
-  }, [orderedEntries, filter, setFilterKey, search]);
+  }, [orderedEntries, filter, setFilterKey]);
+
+  const filtered = useMemo(() => {
+    if (!search.trim()) return baseFiltered;
+    return baseFiltered.filter((e) => matchesCollectionEntrySearch(e, search));
+  }, [baseFiltered, search]);
 
   const viewFilterActive = !search.trim() && !setFilterKey;
   const sortable =
@@ -232,7 +234,7 @@ export function CollectionViewClient({
   }
 
   const binderGapsEditable =
-    filter === "all" && viewFilterActive && !!collection;
+    filter === "all" && !setFilterKey && !!collection;
 
   function changeBinderGaps(nextGaps: number[]) {
     if (!collection) return;
@@ -735,8 +737,9 @@ export function CollectionViewClient({
         ) : collection ? (
           viewMode === "binder" ? (
             <BinderView
-              key={`binder-${collection.collection_id}-${search.trim()}-${filter}-${setFilterKey ?? ""}`}
-              entries={filtered}
+              key={`binder-${collection.collection_id}-${filter}-${setFilterKey ?? ""}`}
+              entries={baseFiltered}
+              highlightQuery={search}
               gaps={binderGapsEditable ? binderGaps : []}
               onGapsChange={
                 binderGapsEditable ? changeBinderGaps : undefined

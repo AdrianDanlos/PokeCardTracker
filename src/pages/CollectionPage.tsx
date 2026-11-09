@@ -64,11 +64,11 @@ export function CollectionPage() {
   });
 
   const entriesQuery = useQuery({
-    queryKey: ["collection-entries", id, user?.id, q],
+    queryKey: ["collection-entries", id, user?.id],
     enabled: !!user && !!id,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
-    queryFn: () => getCollectionEntries(id!, user!.id, q || undefined),
+    queryFn: () => getCollectionEntries(id!, user!.id),
   });
 
   useEffect(() => {
