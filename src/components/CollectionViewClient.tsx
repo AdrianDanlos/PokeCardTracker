@@ -756,7 +756,7 @@ export function CollectionViewClient({
               key={`binder-${collection.collection_id}-${setFilterKey ?? ""}`}
               entries={binderEntries}
               highlightQuery={search}
-              gaps={binderGapsEditable ? binderGaps : []}
+              gaps={binderGaps}
               onGapsChange={
                 binderGapsEditable ? changeBinderGaps : undefined
               }

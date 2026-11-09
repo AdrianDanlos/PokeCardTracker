@@ -371,10 +371,9 @@ export function BinderView({
   highlightQuery?: string;
 }) {
   const isMobile = useMobileLayout();
-  const effectiveGaps = onGapsChange ? gaps : [];
   const slots = useMemo(
-    () => buildBinderSlots(entries, effectiveGaps),
-    [entries, effectiveGaps],
+    () => buildBinderSlots(entries, gaps),
+    [entries, gaps],
   );
   const totalPages = totalPagesForSlotCount(slots.length);
   const totalSpreads = totalSpreadsForPageCount(totalPages);
@@ -384,6 +383,7 @@ export function BinderView({
   );
 
   const [navIndex, setNavIndex] = useState(0);
+  const userChosePageRef = useRef(false);
 
   const trimmedHighlightQuery = highlightQuery.trim();
   const searchActive = trimmedHighlightQuery.length > 0;
@@ -421,16 +421,13 @@ export function BinderView({
     return spreads;
   }, [pagesWithMatches]);
 
-  const lastJumpForQueryRef = useRef("");
+  useEffect(() => {
+    userChosePageRef.current = false;
+  }, [trimmedHighlightQuery]);
 
   useEffect(() => {
-    if (!searchActive) {
-      lastJumpForQueryRef.current = "";
-      return;
-    }
+    if (!searchActive || userChosePageRef.current) return;
     if (!highlightedIds || highlightedIds.size === 0) return;
-    if (lastJumpForQueryRef.current === trimmedHighlightQuery) return;
-    lastJumpForQueryRef.current = trimmedHighlightQuery;
 
     let firstSlot: number | null = null;
     for (let i = 0; i < slots.length; i++) {
@@ -454,17 +451,25 @@ export function BinderView({
     highlightedIds,
   ]);
 
+  const goToNavIndex = useCallback(
+    (next: number | ((current: number) => number)) => {
+      userChosePageRef.current = true;
+      setNavIndex(next);
+    },
+    [],
+  );
+
   useEffect(() => {
     setNavIndex((i) => Math.min(i, maxNavIndex));
   }, [maxNavIndex]);
 
   const goPrev = useCallback(() => {
-    setNavIndex((i) => Math.max(0, i - 1));
-  }, []);
+    goToNavIndex((i) => Math.max(0, i - 1));
+  }, [goToNavIndex]);
 
   const goNext = useCallback(() => {
-    setNavIndex((i) => Math.min(maxNavIndex, i + 1));
-  }, [maxNavIndex]);
+    goToNavIndex((i) => Math.min(maxNavIndex, i + 1));
+  }, [goToNavIndex, maxNavIndex]);
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -530,7 +535,7 @@ export function BinderView({
               pageIndex={leftPageIndex!}
               pageNumberOneBased={leftPageIndex! + 1}
               slots={slots}
-              gaps={effectiveGaps}
+              gaps={gaps}
               onToggleOwned={onToggleOwned}
               onGapsChange={onGapsChange}
               highlightedIds={highlightedIds}
@@ -543,7 +548,7 @@ export function BinderView({
                   pageIndex={leftPageIndex}
                   pageNumberOneBased={leftPageIndex + 1}
                   slots={slots}
-                  gaps={effectiveGaps}
+                  gaps={gaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
                   highlightedIds={highlightedIds}
@@ -558,7 +563,7 @@ export function BinderView({
                   pageIndex={rightPageIndex}
                   pageNumberOneBased={rightPageIndex + 1}
                   slots={slots}
-                  gaps={effectiveGaps}
+                  gaps={gaps}
                   onToggleOwned={onToggleOwned}
                   onGapsChange={onGapsChange}
                   highlightedIds={highlightedIds}
@@ -587,7 +592,7 @@ export function BinderView({
                   ? "btn-primary px-3 py-1 text-sm"
                   : "btn-ghost px-3 py-1 text-sm"
               }
-              onClick={() => setNavIndex(item.index)}
+              onClick={() => goToNavIndex(item.index)}
             >
               <span className="inline-flex items-center gap-1.5">
                 {item.label}
