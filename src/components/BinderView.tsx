@@ -1,7 +1,7 @@
 import { CardImage } from "@/components/CardImage";
 import { matchesCollectionEntrySearch } from "@/lib/collection-entry-search";
 import type { CollectionEntryWithCard } from "@/lib/types";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const POCKETS_PER_PAGE = 9;
 
@@ -421,8 +421,17 @@ export function BinderView({
     return spreads;
   }, [pagesWithMatches]);
 
+  const lastJumpForQueryRef = useRef("");
+
   useEffect(() => {
-    if (!searchActive || !highlightedIds || highlightedIds.size === 0) return;
+    if (!searchActive) {
+      lastJumpForQueryRef.current = "";
+      return;
+    }
+    if (!highlightedIds || highlightedIds.size === 0) return;
+    if (lastJumpForQueryRef.current === trimmedHighlightQuery) return;
+    lastJumpForQueryRef.current = trimmedHighlightQuery;
+
     let firstSlot: number | null = null;
     for (let i = 0; i < slots.length; i++) {
       const entry = slots[i];
@@ -436,8 +445,14 @@ export function BinderView({
     const nextNav = isMobile
       ? pageIndex
       : pageIndexToSpreadIndex(pageIndex);
-    setNavIndex((i) => (i === nextNav ? i : nextNav));
-  }, [trimmedHighlightQuery, isMobile, slots, searchActive, highlightedIds]);
+    setNavIndex(nextNav);
+  }, [
+    trimmedHighlightQuery,
+    isMobile,
+    searchActive,
+    slots,
+    highlightedIds,
+  ]);
 
   useEffect(() => {
     setNavIndex((i) => Math.min(i, maxNavIndex));
