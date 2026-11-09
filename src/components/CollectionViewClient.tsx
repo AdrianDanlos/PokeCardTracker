@@ -159,6 +159,13 @@ export function CollectionViewClient({
     () => listCollectionSetNamesFromEntries(orderedEntries),
     [orderedEntries],
   );
+  const binderEntries = useMemo(() => {
+    if (!setFilterKey) return orderedEntries;
+    return orderedEntries.filter(
+      (e) => collectionEntrySetFilterKey(e) === setFilterKey,
+    );
+  }, [orderedEntries, setFilterKey]);
+
   const baseFiltered = useMemo(() => {
     let list = orderedEntries;
     if (filter === "owned") list = list.filter((e) => e.owned);
@@ -182,6 +189,9 @@ export function CollectionViewClient({
 
   function setViewModeAndPersist(mode: CollectionViewMode) {
     scrollYToRestoreRef.current = window.scrollY;
+    if (mode === "binder" && filter !== "all") {
+      setFilter("all");
+    }
     setViewMode(mode);
     try {
       localStorage.setItem(COLLECTION_VIEW_STORAGE_KEY, mode);
@@ -234,7 +244,10 @@ export function CollectionViewClient({
   }
 
   const binderGapsEditable =
-    filter === "all" && !setFilterKey && !!collection;
+    viewMode === "binder" &&
+    filter === "all" &&
+    viewFilterActive &&
+    !!collection;
 
   function changeBinderGaps(nextGaps: number[]) {
     if (!collection) return;
@@ -662,7 +675,10 @@ export function CollectionViewClient({
               <button
                 key={f}
                 type="button"
-                disabled={showEntriesLoading}
+                disabled={
+                  showEntriesLoading ||
+                  (viewMode === "binder" && f !== "all")
+                }
                 className={segmentButtonClass(filter === f)}
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectFilter(f)}
@@ -737,8 +753,8 @@ export function CollectionViewClient({
         ) : collection ? (
           viewMode === "binder" ? (
             <BinderView
-              key={`binder-${collection.collection_id}-${filter}-${setFilterKey ?? ""}`}
-              entries={baseFiltered}
+              key={`binder-${collection.collection_id}-${setFilterKey ?? ""}`}
+              entries={binderEntries}
               highlightQuery={search}
               gaps={binderGapsEditable ? binderGaps : []}
               onGapsChange={

@@ -208,7 +208,7 @@ function BinderPocket({
         dimmedBySearch ? "opacity-40" : ""
       } ${
         highlighted
-          ? "z-[1] scale-[1.02] border-accent ring-2 ring-accent ring-offset-2 ring-offset-surface-elevated"
+          ? "z-[1] scale-[1.02] ring-2 ring-accent"
           : owned
             ? "border-border bg-surface-elevated"
             : "border-dashed border-missing bg-transparent"
