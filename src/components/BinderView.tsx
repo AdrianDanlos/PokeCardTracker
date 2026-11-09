@@ -572,8 +572,8 @@ export function BinderView({
               type="button"
               className={
                 item.index === navIndex
-                  ? "btn-primary px-3 py-1 text-sm"
-                  : "btn-ghost px-3 py-1 text-sm"
+                  ? "binder-page-jump btn-primary px-3 py-1 text-sm"
+                  : "binder-page-jump btn-ghost px-3 py-1 text-sm"
               }
               onClick={() => setNavIndex(item.index)}
             >

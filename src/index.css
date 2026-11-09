@@ -121,6 +121,11 @@ button.drag-handle:focus-visible {
   @apply cursor-pointer rounded-lg border border-border px-4 py-2 text-sm text-foreground transition hover:border-accent/50 disabled:cursor-not-allowed;
 }
 
+/* Page jumps swap the yellow fill with the label. A color transition leaves the old page yellow after the numbers have already changed. */
+.binder-page-jump {
+  transition: none;
+}
+
 .input {
   @apply w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none;
 }
